@@ -5,7 +5,11 @@
 #include <string>
 #include <thread>
 #include <websocketpp/client.hpp>
-#include <websocketpp/config/asio_no_tls_client.hpp>
+#include <websocketpp/config/asio_no_tls_client.hpp>[
+#include <iostream>
+#include <future>
+#include <thread>
+#include <chrono>
 
 #include "PhonemeUtility.cpp"
 
@@ -26,18 +30,50 @@ public:
             quest->GetMustUpdate();
         }
     }
-
-    static void MakeCharacterStopHereAndListen(RE::Actor* conversationActor, bool canMove) {
-        SKSE::ModCallbackEvent modEvent{"BLC_SetActorStopState", "", canMove ? 0.0f : 1.0f, conversationActor};
-        SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
-    }
 };
 
 using namespace RE::BSScript;
+using namespace std;
+
+string to_lower(string s) {
+    for (char& c : s) c = tolower(c);
+    return s;
+}
+
+static class SubtitleManager {
+public:
+    static void ShowSubtitle(std::string subtitle, float duration) {
+
+        auto hudMenu = RE::UI::GetSingleton()->GetMenu<RE::HUDMenu>(RE::HUDMenu::MENU_NAME);
+        auto root = hudMenu->GetRuntimeData().root;
+
+        std::this_thread::sleep_for(1s);
+
+        if (subtitle.length() > 0) {
+            RE::GFxValue asStr(subtitle.c_str());
+            root.Invoke("ShowSubtitle", nullptr, &asStr, 1);
+        } else {
+            HideSubtitle();
+        }
+    }
+
+    static void HideSubtitle() {
+        auto hudMenu = RE::UI::GetSingleton()->GetMenu<RE::HUDMenu>(RE::HUDMenu::MENU_NAME);
+        auto root = hudMenu->GetRuntimeData().root;
+        
+        root.Invoke("HideSubtitle", nullptr, nullptr, 0);
+    }
+};
 
 static class InworldCaller {
 public:
     inline static RE::Actor* conversationActor;
+    inline static RE::Actor* conversationPair;
+    inline static int n2n_established_response_count = 0;
+    inline static RE::Actor* N2N_SourceActor;
+    inline static RE::Actor* N2N_TargetActor;
+    inline static bool endingConversation = false;
+
     static void MoveToPlayerWithMargin(RE::Actor* conversationActor) {
         SKSE::ModCallbackEvent modEvent{"BLC_SetActorMoveToPlayer", 0, 0.0f, conversationActor};
         SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
@@ -50,7 +86,6 @@ public:
         // SKSE::GetModCallbackEventSource()->SendEvent(&modEventClear);
         SKSE::ModCallbackEvent modEvent{"BLC_SetFacialExpressionEvent", splitted, 0.0075f, conversationActor};
         SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
-        InworldUtility::MakeCharacterStopHereAndListen(conversationActor, false);
     }
 
     static std::string DisplayMessage(std::string str, int fontSize, int width) {
@@ -77,12 +112,79 @@ public:
         SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
     }
 
-    static void DoGameVisuals(std::string phoneme, std::string message_str) {
-        if (InworldCaller::conversationActor) {
-            // MoveToPlayerWithMargin(InworldCaller::conversationActor);
-            MakeFacialAnimations(InworldCaller::conversationActor, phoneme);
-            ShowReplyMessage(message_str);
+    static void SetHoldPosition(int set, RE::Actor* actor) {
+        SKSE::ModCallbackEvent modEvent{"BLC_SetHoldPosition", "", set, actor};
+        SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
+    }
+
+    static void N2N_Init() {
+        SKSE::ModCallbackEvent modEvent{"BLC_Start_N2N", "", 1.0f, nullptr};
+        SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
+        N2N_Init_Source();
+        N2N_Init_Target();
+    }
+
+    static void N2N_Init_Source() {
+        SKSE::ModCallbackEvent modEvent{"BLC_Start_N2N_Source", "", 1.0f, InworldCaller::N2N_SourceActor};
+        SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
+    }
+
+    static void N2N_Init_Target() {
+        SKSE::ModCallbackEvent modEvent{"BLC_Start_N2N_Target", "", 1.0f, InworldCaller::N2N_TargetActor};
+        SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
+    }
+
+    static void Start(RE::Actor* actor) {
+        SKSE::ModCallbackEvent modEvent{"BLC_Start", "", 1.0f, actor};
+        SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
+    }
+
+    static void Stop() {
+        SKSE::ModCallbackEvent modEvent{"BLC_Stop", "", 1.0f, nullptr};
+        SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
+        InworldCaller::endingConversation = true;
+        InworldCaller::conversationPair = nullptr;
+        InworldCaller::conversationActor = nullptr;
+    }
+
+    static void N2N_TravelToNpcLocation() {
+        SKSE::ModCallbackEvent modEvent{"BLC_TravelToNPCLocation", "", 1.0f, nullptr};
+        SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
+    }
+
+    static void N2N_Stop() {
+        n2n_established_response_count = 0;
+        SKSE::ModCallbackEvent modEvent{"BLC_Stop_N2N", "", 1.0f, nullptr};
+        SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
+        InworldCaller::N2N_SourceActor = nullptr;
+        InworldCaller::N2N_TargetActor = nullptr;
+    }
+
+    static void ConnectionSuccessful() {
+        InworldCaller::conversationPair = conversationActor;
+        SetHoldPosition(0, conversationActor);
+    }
+
+    static void Speak(std::string message, float duration) {
+        SKSE::ModCallbackEvent modEvent{"BLC_Speak", "", 0.0075f, InworldCaller::conversationActor};
+        SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
+        SubtitleManager::ShowSubtitle(message, duration);
+        if (endingConversation) {
+            SetHoldPosition(1, InworldCaller::conversationActor);
+            InworldCaller::conversationPair = nullptr;
+            InworldCaller::conversationActor = nullptr;
         }
+    }
+
+    static void SpeakN2N(std::string message, int speaker, float duration) {
+        if (speaker == 0) {
+            SKSE::ModCallbackEvent modEvent{"BLC_Speak_N2N", "", 0, InworldCaller::N2N_SourceActor};
+            SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
+        } else {
+            SKSE::ModCallbackEvent modEvent{"BLC_Speak_N2N", "", 1, InworldCaller::N2N_TargetActor};
+            SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
+        }
+        SubtitleManager::ShowSubtitle(message, duration);
     }
 };
 
@@ -118,13 +220,19 @@ class OpenTextboxCallback : public RE::BSScript::IStackCallbackFunctor {
 
         virtual inline void operator()(RE::BSScript::Variable a_result) override {
             if (a_result.IsNoneObject()) {
-                RE::ConsoleLog::GetSingleton()->Print("Result is empty!");
             } else if (a_result.IsString()) {
                 auto playerMessage = std::string(a_result.GetString());
+
                 std::thread(
                     [](RE::Actor* actor, std::string msg) { SocketManager::getInstance().sendMessage(msg, actor); },
                     conversationActor, playerMessage)
                     .detach();
+
+                if (to_lower(playerMessage).find(std::string("goodbye")) != std::string::npos) {
+                    SocketManager::getInstance().SendStopSignal(InworldEventSink::GetSingleton()->conversationPair);
+                    InworldEventSink::GetSingleton()->conversationPair = nullptr;
+                    InworldCaller::conversationPair = nullptr;
+                }
             }
             callback_();
         }
@@ -138,6 +246,7 @@ class OpenTextboxCallback : public RE::BSScript::IStackCallbackFunctor {
 
 public:
     bool isLocked;
+    RE::Actor* previousActor;
     RE::Actor* conversationPair;
     bool pressingKey = false;
     bool isOpenedWindow = false;
@@ -150,15 +259,11 @@ public:
 
     RE::BSEventNotifyControl ProcessEvent(const SKSE::CrosshairRefEvent* event,
                                           RE::BSTEventSource<SKSE::CrosshairRefEvent>*) {
-        if (conversationPair != nullptr) {
-            InworldUtility::MakeCharacterStopHereAndListen(conversationPair, true);
-        }
 
         if (event->crosshairRef) {
             const char* objectName = event->crosshairRef->GetBaseObject()->GetName();
 
             try {
-                // RE::ConsoleLog::GetSingleton()->Print(objectName);
                 auto baseObject = event->crosshairRef->GetBaseObject();
                 auto talkingWith = RE::TESForm::LookupByID<RE::TESNPC>(baseObject->formID);
                 auto actorObject = event->crosshairRef->As<RE::Actor>();
@@ -167,11 +272,6 @@ public:
                     conversationPair = nullptr;
                     auto className = talkingWith->npcClass->fullName;
                     auto raceName = talkingWith->race->fullName;
-
-                    if (className == "Prey" || className == "Predator") return RE::BSEventNotifyControl::kContinue;
-                    if (raceName.contains("Rabbit") || raceName.contains("Wolf") || raceName.contains("Cow") ||
-                        raceName.contains("Fox"))
-                        return RE::BSEventNotifyControl::kContinue;
 
                     conversationPair = actorObject;
                 }
@@ -260,13 +360,16 @@ public:
                     }
                     // U key
                 } else if (dxScanCode == 22) {
-                    if (!isOpenedWindow)
-                        OnPlayerRequestInput("UITextEntryMenu");
-                } else if (dxScanCode == 21) {
-                    // Y key. Connect to character
-                    if (buttonEvent->IsDown() && conversationPair != nullptr) {
-                        SocketManager::getInstance().connectTo(conversationPair);
+                    if (buttonEvent->IsDown() && conversationPair != nullptr &&
+                        (InworldCaller::conversationPair == nullptr ||
+                         InworldCaller::conversationPair != conversationPair)) {
+                        InworldCaller::Start(conversationPair);
+                    } else if (buttonEvent->IsDown() && InworldCaller::conversationPair != nullptr) {
+                        if (!isOpenedWindow) OnPlayerRequestInput("UITextEntryMenu");
                     }
+                    // Y key
+                } else if (buttonEvent->IsDown() && dxScanCode == 27) {
+                    SocketManager::getInstance().sendN2NStopSignal();
                 }
                 /* // funbit
                 else if (dxScanCode == 71) {
@@ -282,6 +385,38 @@ public:
         }
 
         return RE::BSEventNotifyControl::kContinue;
+    }
+
+    static bool Start(RE::StaticFunctionTag*, RE::Actor* target, string currentDateTime) {
+        if (!target) {
+            return false;
+        }
+        
+        SocketManager::getInstance().connectTo(target, currentDateTime);
+
+        return true;
+    }
+
+    static bool N2N_Initiate(RE::StaticFunctionTag*, RE::Actor* source, RE::Actor* target) {
+        if (!source || !target) {
+            return false;
+        }
+
+        SocketManager::getInstance().connectTo_N2N(source, target);
+
+        return true;
+    }
+
+    static bool N2N_Start(RE::StaticFunctionTag*, string currentDateTime) {
+        if (InworldCaller::N2N_SourceActor == nullptr || InworldCaller::N2N_TargetActor == nullptr) {
+            RE::ConsoleLog::GetSingleton()->Print("Returning, actors null.");
+            return false;
+        }
+
+        SocketManager::getInstance().sendN2NStartSignal(InworldCaller::N2N_SourceActor, InworldCaller::N2N_TargetActor,
+                                                        currentDateTime);
+
+        return true;
     }
 };
 
@@ -322,7 +457,13 @@ void StartClient() {
     StartAudioBus();
 }
 
+bool RegisterPapyrusFunctions(RE::BSScript::IVirtualMachine* vm) {
+    vm->RegisterFunction("Start", "InworldSKSE", &InworldEventSink::Start);
+    vm->RegisterFunction("N2N_Initiate", "InworldSKSE", &InworldEventSink::N2N_Initiate);
+    vm->RegisterFunction("N2N_Start", "InworldSKSE", &InworldEventSink::N2N_Start);
 
+    return true;
+}
 
 SKSEPluginLoad(const SKSE::LoadInterface* skse) {
     SKSE::Init(skse);
@@ -339,6 +480,11 @@ SKSEPluginLoad(const SKSE::LoadInterface* skse) {
 
     // Input Device
     SKSE::GetMessagingInterface()->RegisterListener(OnMessage);
+
+    auto papyrus = SKSE::GetPapyrusInterface();
+    if (papyrus) {
+        papyrus->Register(RegisterPapyrusFunctions);
+    }
 
     return true;
 }

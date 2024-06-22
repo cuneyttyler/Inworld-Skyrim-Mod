@@ -3,6 +3,8 @@ import {InworldClient, InworldConnectionService} from '@inworld/nodejs-sdk';
 import InworldWorkspaceManager from './InworldWorkspaceManager.js';
 import {BLCRecorder} from './Audio/BLCRecorder.js';
 import {SkyrimInworldSocketController,GetSocketResponse} from './SkyrimInworldSocketController.js';
+import {logToErrorLog} from '../SkyrimClient.js'
+import * as fs from 'fs';
 
 const WORKSPACE_NAME = process.env.INWORLD_WORKSPACE;
 
@@ -20,18 +22,35 @@ export default class InworldClientManager {
     private socketController : SkyrimInworldSocketController;
     private isVoiceConnected = false;
     private isAudioSessionStarted = false;
+    private is_n2n = false;
+    private speaker = false;
+    private characterName: string;
+    private is_ending = false;
+    private prompt;
+
     currentCapabilities = {
         audio: true,
         emotions: true,
-        phonemes: true
+        phonemes: true,
+        narratedActions: true
     }
 
-    constructor() { 
-        this.SetupWorkspaceAndClient();
+    constructor(setupWorkspace, is_n2n, speaker) {
+        this.is_n2n = is_n2n;
+        this.speaker = speaker;
+        this.SetupClientAndWorkspace(setupWorkspace)
     }
 
-    async SetupWorkspaceAndClient() {
-        this.workspaceManager = new InworldWorkspaceManager();
+    GetWorkspaceManager() {
+        return this.workspaceManager;
+    }
+
+    SetWorkspaceManager(workspaceManager) {
+        this.workspaceManager = workspaceManager;
+    }
+
+    async SetupClientAndWorkspace(setupWorkspace) {
+        this.workspaceManager = new InworldWorkspaceManager(setupWorkspace);
         this.CreateClient();
     }
 
@@ -49,14 +68,20 @@ export default class InworldClientManager {
             let scene = "workspaces/" + WORKSPACE_NAME + "/characters/{CHARACTER_NAME}".replace("{CHARACTER_NAME}", id);
             this.client.setUser({fullName: playerName});
             this.client.setScene(scene);
+            this.is_ending = false;
 
             this.socketController = new SkyrimInworldSocketController(socket);
-            this.client.setOnMessage((dat : any) => this.socketController.ProcessMessage(dat));
+            this.client.setOnMessage((data : any) => this.socketController.ProcessMessage(data, this.is_n2n, this.speaker, this.is_ending));
 
             this.client.setOnError((err) => {
-                if (err.code != 10 && err.code != 1) 
-                    console.error(err);
+                if (err.code != 10 && err.code != 1)
+                    logToErrorLog(JSON.stringify(err));
             });
+            let dialogueHistory = this.GetDialogueHistory(id);
+            if(dialogueHistory)
+                this.client.setSessionContinuation({
+                    previousDialog: dialogueHistory
+                });
             this.connection = this.client.build();
             this.IsConnected = true;
             if (!this.isVoiceConnected) {
@@ -64,26 +89,106 @@ export default class InworldClientManager {
                 let port = parseInt(process.env.AUDIO_PORT);
                 this.blcRecorder = new BLCRecorder("127.0.0.1", port);
                 this.blcRecorder.connect(this.connection);
+                
             }
             this.socketController.SetRecorder(this.blcRecorder);
-
-            let verifyConnection = GetSocketResponse("connection established", "1-1", "established");
-            console.log("Connection to " + id + " is succesfull");
-            (console as any).logToLog(`Connection to ${id} is succesfull.`)
+            this.characterName = id;
             await this.connection.sendAudioSessionStart();
+            let verifyConnection = GetSocketResponse("connection established", "1-1", "established", 0, this.is_n2n, this.speaker);
+            console.log("Connection to " + id + " is succesfull" + JSON.stringify(verifyConnection));
+            (console as any).logToLog(`Connection to ${id} is succesfull.`)
             this.isAudioSessionStarted = true;
+            console.log("Sending verify connection, speaker: " + this.speaker)
             socket.send(JSON.stringify(verifyConnection));
+            return 1;
         } catch(err) {
-            console.error(err);
-            let returnDoesNotExist = GetSocketResponse("This soul lacks the divine blessing of conversational endowment bestowed by the gods.", "1-1", "doesntexist");
-            socket.send(JSON.stringify(returnDoesNotExist));
+            if(characterId.includes("GenericMale") || characterId.includes("GenericFemale")) {
+                console.error("ERROR during connecting " + playerName + " -> " + characterId)
+                console.error(err);
+                let returnDoesNotExist = GetSocketResponse("This soul lacks the divine blessing of conversational endowment bestowed by the gods.", "1-1", "doesntexist", 0, this.is_n2n, this.speaker);
+                socket.send(JSON.stringify(returnDoesNotExist));
+                return 0;
+            }
+
+            let character = this.workspaceManager.GetGenericCharacter(characterId.toLowerCase());
+            if(character == null) {
+                console.error("ERROR during connecting " + playerName + " -> " + characterId)
+                console.error(err);
+                let returnDoesNotExist = GetSocketResponse("This soul lacks the divine blessing of conversational endowment bestowed by the gods.", "1-1", "doesntexist", 0, this.is_n2n, this.speaker);
+                socket.send(JSON.stringify(returnDoesNotExist));
+                return 0;
+            }
+
+            console.log(character.name +' is a generic NPC. Connecting to generic NPC.');
+
+            if(!character.genericIndex) {
+                console.error("Generic character index could not be found for " + character.name);
+                return 0;
+            }
+
+            let genericCharacterId = null
+            if(character.defaultCharacterAssets.voice.gender == 'VOICE_GENDER_MALE') {
+                genericCharacterId = "GenericMale" + character.genericIndex;
+            } else if(character.defaultCharacterAssets.voice.gender == 'VOICE_GENDER_FEMALE') {
+                genericCharacterId = "GenericFemale" + character.genericIndex;
+            } else {
+                console.error("Character gender could not be found.");
+                return 0;
+            }
+            
+            this.prompt = "This is your character information, speak accordingly:" + JSON.stringify(character);
+            await this.ConnectToCharacterViaSocket(genericCharacterId, playerName, socket);
+            this.SendNarratedAction(this.prompt);
+            return 2;
         }
     }
 
-    Say(message : string) {
+    GetDialogueHistory(id) {
+        try {
+            let fileName = './Conversations/' + id + '.json'
+            if(!fs.existsSync(fileName)) return
+            let data = fs.readFileSync(fileName, 'utf8')
+            return JSON.parse(data)
+        } catch (err) {
+          console.error('Error reading or parsing the file:', err);
+          return
+        }
+    }
+
+    async SaveDialogueHistory(id, history) {
+        try {
+            let previousHistory = this.GetDialogueHistory(id)
+            let newHistory = null;
+            if(previousHistory) {
+                newHistory = previousHistory.concat(history)
+            } else {
+                newHistory = history;
+            }
+            let fileName = './Conversations/' + id + '.json'
+
+            if(fs.existsSync(fileName)) {
+                fs.unlinkSync(fileName)
+            }
+            fs.writeFileSync(fileName, JSON.stringify(newHistory), 'utf8')
+        } catch (err) {
+          console.error('Error writing the file:', err);
+          return false;
+        }
+    }
+
+    Say(message : string, is_ending?) {
         if (this.IsConnected) {
             this.connection.sendText(message);
+            this.is_ending = is_ending;
         }
+    }
+
+    SendNarratedAction(message: string) {
+        this.connection.sendNarratedAction(message);   
+    }
+
+    SendEndSignal() {
+        this.socketController.SendEndSignal(this.is_n2n)
     }
 
     async StartTalking() {
