@@ -409,7 +409,6 @@ public:
 
     static bool N2N_Start(RE::StaticFunctionTag*, string currentDateTime) {
         if (InworldCaller::N2N_SourceActor == nullptr || InworldCaller::N2N_TargetActor == nullptr) {
-            RE::ConsoleLog::GetSingleton()->Print("Returning, actors null.");
             return false;
         }
 

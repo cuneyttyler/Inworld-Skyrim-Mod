@@ -27,6 +27,7 @@ export default class InworldClientManager {
     private characterName: string;
     private is_ending = false;
     private prompt;
+    private genericCharacterId: string;
 
     currentCapabilities = {
         audio: true,
@@ -57,6 +58,8 @@ export default class InworldClientManager {
     // Socket version of connection
     async ConnectToCharacterViaSocket(characterId : string, playerName : string, socket : WebSocket) {
         try {
+            this.genericCharacterId = null;
+            this.prompt = null;
             let id = this.workspaceManager.GetCharacterIdentifier(characterId);
             console.log(`Requested to talk with ${characterId} which corresponds to ${id} on database.`);
             (console as any).logToLog(`Requested to talk with ${characterId} which corresponds to ${id} on database.`)
@@ -77,19 +80,18 @@ export default class InworldClientManager {
                 if (err.code != 10 && err.code != 1)
                     logToErrorLog(JSON.stringify(err));
             });
-            let dialogueHistory = this.GetDialogueHistory(id);
+            let dialogueHistory = this.GetDialogueHistory(!this.prompt ? id : this.genericCharacterId);
             if(dialogueHistory)
                 this.client.setSessionContinuation({
                     previousDialog: dialogueHistory
                 });
             this.connection = this.client.build();
             this.IsConnected = true;
-            if (!this.isVoiceConnected) {
+            if (!this.is_n2n && !this.isVoiceConnected) {
                 console.log("Creating voice listener connection");
                 let port = parseInt(process.env.AUDIO_PORT);
                 this.blcRecorder = new BLCRecorder("127.0.0.1", port);
                 this.blcRecorder.connect(this.connection);
-                
             }
             this.socketController.SetRecorder(this.blcRecorder);
             this.characterName = id;
@@ -136,15 +138,24 @@ export default class InworldClientManager {
                 return 0;
             }
             
+            this.genericCharacterId = characterId.toLowerCase();
             this.prompt = "This is your character information, speak accordingly:" + JSON.stringify(character);
             await this.ConnectToCharacterViaSocket(genericCharacterId, playerName, socket);
-            this.SendNarratedAction(this.prompt);
             return 2;
         }
     }
 
+    Init(initMessage: string) {
+        if(this.prompt) {
+            console.log("Sending prompt.");
+            this.SendNarratedAction(this.prompt);
+        }
+        this.SendNarratedAction(initMessage);
+    }
+
     GetDialogueHistory(id) {
         try {
+            id = id.toLowerCase();
             let fileName = './Conversations/' + id + '.json'
             if(!fs.existsSync(fileName)) return
             let data = fs.readFileSync(fileName, 'utf8')
@@ -157,6 +168,7 @@ export default class InworldClientManager {
 
     async SaveDialogueHistory(id, history) {
         try {
+            id = id.toLowerCase();
             let previousHistory = this.GetDialogueHistory(id)
             let newHistory = null;
             if(previousHistory) {

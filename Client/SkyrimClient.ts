@@ -23,14 +23,14 @@ const fastify = Fastify({logger: true});
 fastify.register(websocketPlugin);
 
 const ClientManager = await new InworldClientManager(true, false, 0);
-const ClientManager_GameMaster = new InworldClientManager(false, true, 2);
+const ClientManager_DungeonMaster = new InworldClientManager(false, true, 2);
 const ClientManager_N2N_Source = new InworldClientManager(false, true, 0);
 const ClientManager_N2N_Target = new InworldClientManager(false, true, 1);
 ClientManager_N2N_Source.SetWorkspaceManager(ClientManager.GetWorkspaceManager())
 ClientManager_N2N_Target.SetWorkspaceManager(ClientManager.GetWorkspaceManager())
-ClientManager_GameMaster.SetWorkspaceManager(ClientManager.GetWorkspaceManager())
+ClientManager_DungeonMaster.SetWorkspaceManager(ClientManager.GetWorkspaceManager())
 
-var dialogueManager = new DialogueManager(N2N_MAX_STEP_COUNT, ClientManager_GameMaster, ClientManager_N2N_Source, ClientManager_N2N_Target);;
+var dialogueManager = new DialogueManager(N2N_MAX_STEP_COUNT, ClientManager_DungeonMaster, ClientManager_N2N_Source, ClientManager_N2N_Target);;
 
 var dialogueHistory = [];
 
@@ -90,7 +90,7 @@ fastify.register(async function (fastify) {
                 ClientManager.SaveDialogueHistory(message.id, dialogueHistory);
                 dialogueHistory = [];
             } else if (message.type == "connect" && message.is_n2n) {
-                ClientManager_GameMaster.ConnectToCharacterViaSocket(message.source, "GameMaster", connection.socket);
+                ClientManager_DungeonMaster.ConnectToCharacterViaSocket(message.source, "DungeonMaster", connection.socket);
                 ClientManager_N2N_Source.ConnectToCharacterViaSocket(message.target, message.source , connection.socket);
                 ClientManager_N2N_Target.ConnectToCharacterViaSocket(message.source, message.target , connection.socket);
             } else if (message.type == "start" && message.is_n2n) {

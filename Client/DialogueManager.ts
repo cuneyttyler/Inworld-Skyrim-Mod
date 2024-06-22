@@ -13,7 +13,7 @@ export default class DialogueManager {
 
     constructor(
         private maxStepCount,
-        private ClientManager_GameMaster: InworldClientManager,
+        private ClientManager_DungeonMaster: InworldClientManager,
         private ClientManager_N2N_Source: InworldClientManager,
         private ClientManager_N2N_Target: InworldClientManager
         ) {}
@@ -56,11 +56,11 @@ export default class DialogueManager {
     async Manage_N2N_Dialogue(source, target, location, currentDateTime) {
         await setTimeout(1000);
 
-        this.ClientManager_GameMaster.SendNarratedAction("Please keep your answers short if possible.");
-        this.ClientManager_N2N_Source.SendNarratedAction("You are at " + location + ". It's " + currentDateTime + ". Please keep your answers short.");
-        this.ClientManager_N2N_Target.SendNarratedAction("You are at " + location + ". It's " + currentDateTime + ". Please keep your answers short.");
+        this.ClientManager_DungeonMaster.Init("Please keep your answers short if possible.");
+        this.ClientManager_N2N_Source.Init("You are at " + location + ". It's " + currentDateTime + ". Please keep your answers short.");
+        this.ClientManager_N2N_Target.Init("You are at " + location + ". It's " + currentDateTime + ". Please keep your answers short.");
 
-        this.ClientManager_GameMaster.Say("It's " + currentDateTime +  ". As you linger in " + location + ", you see " + target + ". What do you to say to him/her? Please answer as if you are talking to him/her.");
+        this.ClientManager_DungeonMaster.Say("As you walk around in " + location + ", you see " + target + ". What do you to say to him/her? Please answer as if you are talking to him/her.");
     
         this.sourceHistory.push({
             talker: DialogParticipant.UNKNOWN,
@@ -90,7 +90,7 @@ export default class DialogueManager {
             }
 
             this.ClientManager_N2N_Source.Say(message, shouldEnd);
-            this.ClientManager_GameMaster.SendNarratedAction('You said "' + message + '" to ' + target + '.');
+            this.ClientManager_DungeonMaster.SendNarratedAction('You said "' + message + '" to ' + target + '.');
 
             this.sourceHistory.push({
                 talker: DialogParticipant.CHARACTER,
@@ -103,7 +103,7 @@ export default class DialogueManager {
 
             if(shouldEnd) {
                 this.finalizeConversation(source, target);
-                this.ClientManager_GameMaster.SendEndSignal();
+                this.ClientManager_DungeonMaster.SendEndSignal();
             }
 
             this.started = true;
@@ -116,9 +116,9 @@ export default class DialogueManager {
                 this.ClientManager_N2N_Target.SendNarratedAction("You don't need to answer now.");
             }
             this.ClientManager_N2N_Target.Say(message, shouldEnd);
-            this.ClientManager_GameMaster.SendNarratedAction(target + ' said "' + message + '" to you.');
+            this.ClientManager_DungeonMaster.SendNarratedAction(target + ' said "' + message + '" to you.');
             if(shouldEnd) {
-                this.ClientManager_GameMaster.Say("You are about to end the dialogue with " + target + ". What do you to say to him/her?");
+                this.ClientManager_DungeonMaster.Say("You are about to end the dialogue with " + target + ". What do you to say to him/her?");
             }
 
             this.sourceHistory.push({
@@ -139,9 +139,9 @@ export default class DialogueManager {
                 this.ClientManager_N2N_Source.SendNarratedAction("You don't need to answer now.");
             }
             this.ClientManager_N2N_Source.Say(message, shouldEnd);
-            this.ClientManager_GameMaster.SendNarratedAction('You said "' + message + '" to ' + target + '.');
+            this.ClientManager_DungeonMaster.SendNarratedAction('You said "' + message + '" to ' + target + '.');
             if(shouldEnd) {
-                this.ClientManager_GameMaster.Say("You are about to end the dialogue with " + target + ". What do you to say to him/her?");
+                this.ClientManager_DungeonMaster.Say("You are about to end the dialogue with " + target + ". What do you to say to him/her?");
             }
 
             this.sourceHistory.push({

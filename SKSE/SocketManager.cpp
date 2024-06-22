@@ -237,7 +237,6 @@ public:
     }
 
     void sendN2NStartSignal(RE::Actor* source, RE::Actor* target, string currentDateTime) {
-        RE::ConsoleLog::GetSingleton()->Print("Sending N2N start signal.");
         N2NMessage* message = new N2NMessage("start", "", source->GetName(), target->GetName(), 0,
                            source->GetCurrentLocation()->GetName(), currentDateTime);
         soc->send_message_n2n(message);

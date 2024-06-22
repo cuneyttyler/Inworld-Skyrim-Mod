@@ -11,6 +11,7 @@
     // Use the latest ECMAScript features
     "target": "esnext",
     // Use the latest module resolution algorithm
+    "module": "NodeNext",
     "moduleResolution": "NodeNext",
     // Do not emit any comments in the output files
     "removeComments": true,
