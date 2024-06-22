@@ -83,7 +83,7 @@ endFunction
 
 function _Stop(String eventName, String strArg, Float numArg, Form sender) 
     debug.Trace("Inworld: Stop Dialogue")
-    Utility.Wait(2)
+    Utility.Wait(5)
     dialogueOngoing = False
     target.Clear()
 endFunction

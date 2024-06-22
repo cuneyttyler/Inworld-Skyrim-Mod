@@ -176,6 +176,8 @@ public:
                 InworldCaller::Speak(message, duration);
             } else if (type == "chat" && is_n2n) {
                 InworldCaller::SpeakN2N(message, speaker, duration);
+            } else if (type == "end" && !is_n2n) {
+                InworldCaller::Stop();
             } else if (type == "end" && is_n2n) {
                 InworldCaller::N2N_Stop();
             } else if (type == "doesntexist" && !is_n2n) {

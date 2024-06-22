@@ -176,7 +176,7 @@ export class SkyrimInworldSocketController {
 
     SendEndSignal(is_n2n) {
         this.stepCount = 0;
-        this.socket.send(JSON.stringify(GetSocketResponse("", "", "end", 0, true, 0)));
+        this.socket.send(JSON.stringify(GetSocketResponse("", "", "end", 0, is_n2n, 0)));
     }
 
     SetRecorder(recorder : BLCRecorder) {

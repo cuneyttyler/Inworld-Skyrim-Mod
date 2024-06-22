@@ -231,7 +231,7 @@ class OpenTextboxCallback : public RE::BSScript::IStackCallbackFunctor {
                 if (to_lower(playerMessage).find(std::string("goodbye")) != std::string::npos) {
                     SocketManager::getInstance().SendStopSignal(InworldEventSink::GetSingleton()->conversationPair);
                     InworldEventSink::GetSingleton()->conversationPair = nullptr;
-                    InworldCaller::conversationPair = nullptr;
+                    InworldCaller::Stop();
                 }
             }
             callback_();
