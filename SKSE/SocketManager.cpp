@@ -28,7 +28,8 @@ public:
                 {"id", id},
                 {"is_n2n", false},
                 {"location", location},
-                {"currentDateTime", currentDateTime}};
+                {"currentDateTime", currentDateTime}
+        };
     }
 
 private:
@@ -178,6 +179,8 @@ public:
                 InworldCaller::SpeakN2N(message, speaker, duration);
             } else if (type == "end" && !is_n2n) {
                 InworldCaller::Stop();
+            } else if (type == "follow_request_accepted" && !is_n2n) {
+                InworldCaller::SendFollowRequestAcceptedSignal();
             } else if (type == "end" && is_n2n) {
                 InworldCaller::N2N_Stop();
             } else if (type == "doesntexist" && !is_n2n) {
@@ -236,13 +239,21 @@ public:
         soc->send_message(message);
     }
 
-    void sendN2NStartSignal(RE::Actor* source, RE::Actor* target, string currentDateTime) {
+    void SendLogEvent(RE::Actor* actor, string log) { 
+        ValidateSocket();
+        auto id = actor->GetName();
+        if (id == nullptr || id == "") return;
+        Message* message = new Message("log_event", log, id);
+        soc->send_message(message);
+    }
+
+    void SendN2NStartSignal(RE::Actor* source, RE::Actor* target, string currentDateTime) {
         N2NMessage* message = new N2NMessage("start", "", source->GetName(), target->GetName(), 0,
                            source->GetCurrentLocation()->GetName(), currentDateTime);
         soc->send_message_n2n(message);
     }
 
-    void sendN2NStopSignal() {
+    void SendN2NStopSignal() {
         N2NMessage* message = new N2NMessage("stop", "", "", "", 0, "");
         soc->send_message_n2n(message);
     }

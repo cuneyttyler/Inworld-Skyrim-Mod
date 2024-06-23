@@ -12,6 +12,7 @@ export default class DialogueManager {
     targetHistory = [];
     started = false;
     initialized = false;
+    conversationOngoing = false;
     constructor(maxStepCount, ClientManager_DungeonMaster, ClientManager_N2N_Source, ClientManager_N2N_Target) {
         this.maxStepCount = maxStepCount;
         this.ClientManager_DungeonMaster = ClientManager_DungeonMaster;
@@ -31,6 +32,7 @@ export default class DialogueManager {
         this.sourceHistory = [];
         this.targetHistory = [];
         this.started = false;
+        this.conversationOngoing = false;
     }
     stop() {
         this.shouldStop = true;
@@ -64,6 +66,7 @@ export default class DialogueManager {
             this.Init(source, target);
             this.initialized = true;
         }
+        this.conversationOngoing = true;
     }
     async Init(source, target) {
         EventBus.GetSingleton().on('GM_SOURCE_RESPONSE', (message) => {
@@ -132,5 +135,8 @@ export default class DialogueManager {
             });
             this.stepCount++;
         });
+    }
+    IsConversationOngoing() {
+        return this.conversationOngoing;
     }
 }

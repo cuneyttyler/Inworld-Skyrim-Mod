@@ -147,6 +147,11 @@ public:
         InworldCaller::conversationActor = nullptr;
     }
 
+    static void SendFollowRequestAcceptedSignal() {
+        SKSE::ModCallbackEvent modEvent{"BLC_Follow_Request_Accepted", "", 1.0f, InworldCaller::conversationPaid};
+        SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
+    }
+
     static void N2N_TravelToNpcLocation() {
         SKSE::ModCallbackEvent modEvent{"BLC_TravelToNPCLocation", "", 1.0f, nullptr};
         SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
@@ -369,7 +374,7 @@ public:
                     }
                     // Y key
                 } else if (buttonEvent->IsDown() && dxScanCode == 27) {
-                    SocketManager::getInstance().sendN2NStopSignal();
+                    SocketManager::getInstance().SendN2NStopSignal();
                 }
                 /* // funbit
                 else if (dxScanCode == 71) {
@@ -412,8 +417,18 @@ public:
             return false;
         }
 
-        SocketManager::getInstance().sendN2NStartSignal(InworldCaller::N2N_SourceActor, InworldCaller::N2N_TargetActor,
+        SocketManager::getInstance().SendN2NStartSignal(InworldCaller::N2N_SourceActor, InworldCaller::N2N_TargetActor,
                                                         currentDateTime);
+
+        return true;
+    }
+
+    static bool LogEvent(RE::StaticFunctionTag*, RE::Actor* actor, string log) {
+        if (actor == nullptr) {
+            return false;
+        }
+
+        SocketManager::getInstance().SendLogEvent(actor, log);
 
         return true;
     }
@@ -460,6 +475,7 @@ bool RegisterPapyrusFunctions(RE::BSScript::IVirtualMachine* vm) {
     vm->RegisterFunction("Start", "InworldSKSE", &InworldEventSink::Start);
     vm->RegisterFunction("N2N_Initiate", "InworldSKSE", &InworldEventSink::N2N_Initiate);
     vm->RegisterFunction("N2N_Start", "InworldSKSE", &InworldEventSink::N2N_Start);
+    vm->RegisterFunction("LogEvent", "InworldSKSE", &InworldEventSink::LogEvent);
 
     return true;
 }

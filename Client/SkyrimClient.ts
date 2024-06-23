@@ -8,6 +8,7 @@ import { DialogParticipant } from '@inworld/nodejs-sdk';
 import DialogueManager from './DialogueManager.js'
 import EventBus from './EventBus.js';
 import path from "path";
+import waitSync from 'wait-sync';
 
 const resolved = path.resolve(".env");
 console.log("Reading .env from location: ", resolved);
@@ -40,6 +41,41 @@ EventBus.GetSingleton().on('TARGET_RESPONSE', (msg) => {
         phrase: msg
     })
 });
+
+function GetEventFile(id) {
+    try {
+        id = id.toLowerCase();
+        let fileName = './Events/' + id + '.json'
+        if(!fs.existsSync(fileName)) {
+            fs.writeFileSync(fileName, "", "utf8");
+        }
+        return fileName;
+    } catch (err) {
+      console.error('Error reading or parsing the file:', err);
+      return
+    }
+}
+
+function GetEvents(id) {
+    let eventFile = GetEventFile(id);
+    return fs.readFileSync(eventFile, 'utf8')
+}
+
+function SaveEventLog(id, log) {
+    try {
+        id = id.toLowerCase();
+        let eventFile = GetEventFile(id);
+
+        if(!fs.existsSync(eventFile)) {
+            console.error("Event file not exists: " + eventFile);
+            return;
+        }
+        fs.appendFileSync(eventFile, log, 'utf8')
+    } catch (err) {
+      console.error('Error writing the file:', err);
+      return false;
+    }
+}
 
 process.on('uncaughtException', function  (err, origin) {
     // console.error('Caught exception: ', err, origin);
@@ -74,7 +110,13 @@ fastify.register(async function (fastify) {
                         talker: DialogParticipant.UNKNOWN,
                         phrase: 'In ' + message.location + ', on ' + message.currentDateTime + ', you started to talk with ' + process.env.PLAYER_NAME + '. '
                     });
+                    waitSync(2)
                     ClientManager.SendNarratedAction('Please keep your answers. short.');
+                    let events = GetEvents(message.id)
+                    if(events && events != "") {
+                        console.log("Sending event log.");
+                        ClientManager.SendNarratedAction("This is what happened previously: " + events);
+                    }
                 }
             } else if (message.type == "start_listen" && !message.is_n2n) {
                 ClientManager.StartTalking();
@@ -93,11 +135,34 @@ fastify.register(async function (fastify) {
                 ClientManager_DungeonMaster.ConnectToCharacterViaSocket(message.source, "DungeonMaster", connection.socket);
                 ClientManager_N2N_Source.ConnectToCharacterViaSocket(message.target, message.source , connection.socket);
                 ClientManager_N2N_Target.ConnectToCharacterViaSocket(message.source, message.target , connection.socket);
+                let sourceEvents = GetEvents(message.source)
+                if(sourceEvents && sourceEvents != "") {
+                    console.log("Sending source event log.");
+                    ClientManager_DungeonMaster.SendNarratedAction("This is what happened previously: " + sourceEvents);
+                    ClientManager_N2N_Target.SendNarratedAction("This is what happened previously: " + sourceEvents);
+                }
+                let targetEvents = GetEvents(message.target)
+                if(targetEvents && targetEvents != "") {
+                    console.log("Sending target event log.");
+                    ClientManager_N2N_Source.SendNarratedAction("This is what happened previously: " + targetEvents);
+                }
             } else if (message.type == "start" && message.is_n2n) {
                 dialogueManager.Manage_N2N_Dialogue(message.source, message.target, message.location, message.currentDateTime)
             } else if (message.type == "stop" && message.is_n2n) {
                 if(dialogueManager && dialogueManager.running()) {
                     dialogueManager.stop();
+                }
+            } else if (message.type == "log_event") {
+                SaveEventLog(message.id, message.message);
+                if(ClientManager.IsConversationOngoing()) {
+                    console.log("Sending SendNarratedAction: ")
+                    ClientManager.SendTrigger("player_event", {parameters: [{name:"event", value: message.message}]});
+                }
+                if(dialogueManager.IsConversationOngoing()) {
+                    console.log("Sending narrated action N2N")
+                    ClientManager_DungeonMaster.SendNarratedAction(message.message);
+                    ClientManager_N2N_Target.SendNarratedAction(message.message);
+                    ClientManager_N2N_Source.SendNarratedAction(message.message);
                 }
             }
         })

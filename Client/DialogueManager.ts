@@ -10,6 +10,7 @@ export default class DialogueManager {
     private targetHistory = [];
     private started = false;
     private initialized = false;
+    private conversationOngoing = false;
 
     constructor(
         private maxStepCount,
@@ -34,6 +35,7 @@ export default class DialogueManager {
         this.sourceHistory = [];
         this.targetHistory = [];
         this.started = false;
+        this.conversationOngoing = false;
     }
 
     stop() {
@@ -74,6 +76,7 @@ export default class DialogueManager {
             this.Init(source, target);
             this.initialized = true;
         }
+        this.conversationOngoing = true;
     }
 
     async Init(source, target) {
@@ -157,4 +160,7 @@ export default class DialogueManager {
         });
     }
 
+    IsConversationOngoing() {
+        return this.conversationOngoing;
+    }
 }

@@ -21,6 +21,7 @@ export default class InworldClientManager {
     is_n2n = false;
     speaker = false;
     characterName;
+    conversationOngoing;
     is_ending = false;
     prompt;
     genericCharacterId;
@@ -89,6 +90,7 @@ export default class InworldClientManager {
             this.isAudioSessionStarted = true;
             console.log("Sending verify connection, speaker: " + this.speaker);
             socket.send(JSON.stringify(verifyConnection));
+            this.conversationOngoing = true;
             return 1;
         }
         catch (err) {
@@ -181,6 +183,9 @@ export default class InworldClientManager {
     SendNarratedAction(message) {
         this.connection.sendNarratedAction(message);
     }
+    SendTrigger(trigger, parameters) {
+        this.connection.sendTrigger(trigger, parameters);
+    }
     SendEndSignal() {
         this.socketController.SendEndSignal(this.is_n2n);
     }
@@ -198,6 +203,9 @@ export default class InworldClientManager {
             this.isAudioSessionStarted = false;
             this.socketController.SendUserVoiceInput();
         }, 500);
+    }
+    IsConversationOngoing() {
+        return this.conversationOngoing;
     }
     CreateClient() {
         this.client = new InworldClient();
