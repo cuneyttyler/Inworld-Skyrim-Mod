@@ -8,7 +8,6 @@ Computer : DESKTOP-VOF8J3K
 scriptName InworldConversation extends Quest
 
 ;-- Properties --------------------------------------
-iwant_widgets property iWidgets auto
 package property inworld_stand_package auto
 
 ;-- Variables ---------------------------------------
@@ -81,13 +80,6 @@ function ClearActorFixation(Actor subjectActor)
 	subjectActor.SetDontMove(false)
 endFunction
 
-function OniWantWidgetsReset(String eventName, String strArg, Float numArg, Form sender)
-
-	if eventName == "iWantWidgetsReset"
-		iWidgets = sender as iwant_widgets
-	endIf
-endFunction
-
 function ShowTextEventHandler(String eventName, String strArg, Float numArg, Form sender)
 	Debug.Notification(strArg);
 	; Debug.Trace("Inworld:ShowTextEventHandler")
@@ -115,49 +107,12 @@ function SetGreetingStuff(Actor subjectActor, Bool isTurnOff)
 	endIf
 endFunction
 
-function DisplayMessage(String str, Int waitTime)
-
-	String[] messageDivided = stringutil.Split(str, ";;;")
-	Int index = 0
-	while index < messageDivided.length
-		String current = messageDivided[index]
-		self.ShowInternal(current, waitTime)
-		index += 1
-	endWhile
-endFunction
-
 function OnUpdate()
 
 	if _isChattingWithActor
 		_actor.SetRestrained(true)
 		debug.SendAnimationEvent(_actor as objectreference, "IdleStopInstant")
 	endIf
-endFunction
-
-function VisibilityToggleHandler(String eventName, String strArg, Float numArg, Form sender)
-
-	if strArg == "true"
-		iWidgets.setVisible(_lastShapeId, 1)
-	elseIf strArg == "false"
-		iWidgets.setVisible(_lastShapeId, 0)
-	endIf
-endFunction
-
-function ShowInternal(String str, Int waitTime)
-
-	if _lastShapeId != -1
-		_isVisible = false
-		iWidgets.setVisible(_lastShapeId, 0)
-		_lastShapeId = -1
-	endIf
-	_lastShapeId = iWidgets.loadText(str, "Minipax", _fontSize, 10000, 10000, false)
-	iWidgets.setPos(_lastShapeId, _posX, _posY)
-	iWidgets.setVisible(_lastShapeId, 1)
-	_isVisible = true
-	utility.Wait(waitTime as Float)
-	iWidgets.setVisible(_lastShapeId, 0)
-	_lastShapeId = -1
-	_isVisible = false
 endFunction
 
 Int function StringToActionIndexConverter(String str)
@@ -203,7 +158,6 @@ function OnInit()
 
 	self.RegisterForUpdate(4.00000)
 	self.RegisterForSingleUpdateGameTime(10 as Float)
-	self.RegisterForModEvent("iWantWidgetsReset", "OniWantWidgetsReset")
 	self.RegisterForModEvent("BLC_CreateSubTitleEvent", "ShowTextEventHandler")
 	self.RegisterForModEvent("BLC_SubtitlePositionEvent", "SetPositionHandler")
 	self.RegisterForModEvent("BLC_SubtitleToggleEvent", "VisibilityToggleHandler")

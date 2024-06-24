@@ -11,6 +11,9 @@ package property InworldStandPackage auto
 package property InworldN2NStandPackage auto
 formlist property DefaultNPCVoiceTypes auto
 GlobalVariable property N2N_ConversationOnGoing auto
+GlobalVariable property N2N_Last_Successful_Start auto
+faction property CurrentFollowerFaction auto
+faction property PotentialFollowerFaction auto
 ; quest property InworldDialogueQuest auto
 
 bool dialogueOngoing = False
@@ -20,6 +23,7 @@ function OnInit()
     self.RegisterForModEvent("BLC_Start", "_Start")
     self.RegisterForModEvent("BLC_Stop", "_Stop")
 	self.RegisterForModEvent("BLC_Speak", "Speak")
+    self.RegisterForModEvent("BLC_Follow_Request_Accepted", "Add_To_Followers")
     self.RegisterForModEvent("BLC_Start_N2N", "Start_N2N")
     self.RegisterForModEvent("BLC_Start_N2N_Source", "Start_N2N_Source")
     self.RegisterForModEvent("BLC_Start_N2N_Target", "Start_N2N_Target")
@@ -83,12 +87,23 @@ endFunction
 
 function _Stop(String eventName, String strArg, Float numArg, Form sender) 
     debug.Trace("Inworld: Stop Dialogue")
-    Utility.Wait(5)
+    Utility.Wait(7)
     dialogueOngoing = False
     target.Clear()
 endFunction
 
+function Add_To_Followers(String eventName, String strArg, Float numArg, Form sender)
+    Actor _actor = sender as Actor
+
+    _actor.AddtoFaction(CurrentFollowerFaction)
+    _actor.AddToFaction(PotentialFollowerFaction)
+    ; TO-DO
+endFunction
+
 function Speak(String eventName, String strArg, Float numArg, Form sender) 
+    If sender == None
+        Return
+    EndIf
     debug.Trace("Inworld: Speak request for " + (sender as Actor).GetDisplayName())
     target.ForceRefTo(sender as Actor)
     Utility.Wait(0.25)
@@ -99,6 +114,7 @@ endFunction
 function Start_N2N(String eventName, String strArg, Float numArg, Form sender)
     Debug.Trace("Inworld: Starting N2N Dialogue.")
     N2N_ConversationOnGoing.SetValue(1)
+    N2N_Last_Successful_Start.SetValueInt((Utility.GetCurrentRealTime() as int) % 1000)
 endFunction
 
 function Start_N2N_Source(String eventName, String strArg, Float numArg, Form sender)

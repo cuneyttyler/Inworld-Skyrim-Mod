@@ -5,9 +5,12 @@ build
 cmake-build*
 node_module*
 Client/node_module*
+Client/jsbuild
 Client/package-lock*
 Client/SkyrimClient.exe*
 Client/InworldClient.log
 Client/InworldClientError.log
 .env
 Client/.env
+SKSE/build
+SKSE/.vs

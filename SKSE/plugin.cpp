@@ -148,7 +148,7 @@ public:
     }
 
     static void SendFollowRequestAcceptedSignal() {
-        SKSE::ModCallbackEvent modEvent{"BLC_Follow_Request_Accepted", "", 1.0f, InworldCaller::conversationPaid};
+        SKSE::ModCallbackEvent modEvent{"BLC_Follow_Request_Accepted", "", 1.0f, InworldCaller::conversationPair};
         SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
     }
 

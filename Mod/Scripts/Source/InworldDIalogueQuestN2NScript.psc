@@ -2,6 +2,7 @@ Scriptname InworldDialogueQuestN2NScript extends Quest
 
 formlist property DefaultNPCVoiceTypes auto
 globalvariable property N2N_ConversationOnGoing auto
+GlobalVariable property N2N_Last_Successful_Start auto
 
 int initiateTimeInterval = 180
 int initiateSamePairTimeInterval = 300
@@ -29,9 +30,8 @@ function CheckN2NDialogue()
                 If targetActor != None && targetActor != sourceActor && targetActor != Game.GetPlayer() && IsAvailableForDialogue(targetActor)
                     ; Debug.Trace("Inworld: Target Actor = " + sourceActor.GetDisplayName())
 
-                    bool notSameCondition = !IsSameActors(sourceActor, targetActor) && _time - lastInitiateTime > initiateTimeInterval
-                    bool sameCondition = IsSameActors(sourceActor, targetActor) && _time - lastInitiateTime > initiateSamePairTimeInterval
-                    If N2N_ConversationOnGoing.GetValueInt() == 0 && (isFirst() || notSameCondition || sameCondition)
+                    
+                    If N2N_ConversationOnGoing.GetValueInt() == 0 && (isFirst() || _time - N2N_Last_Successful_Start.GetValueInt() > initiateTimeInterval) && Utility.RandomInt(0,2) == 0
                         
                         Debug.Trace("Inworld: Sending InitiateConversation Signal For " + sourceActor.GetDisplayName() + " and " + targetActor.GetDisplayName())
                         InworldSKSE.N2N_Initiate(sourceActor, targetActor)
