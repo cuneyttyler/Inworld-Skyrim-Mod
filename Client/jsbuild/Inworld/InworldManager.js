@@ -1,3 +1,4 @@
+// @ts-check
 import { InworldClient } from '@inworld/nodejs-sdk';
 import InworldWorkspaceManager from './InworldWorkspaceManager.js';
 import { BLCRecorder } from './Audio/BLCRecorder.js';
@@ -46,6 +47,7 @@ export default class InworldClientManager {
         this.workspaceManager = new InworldWorkspaceManager(setupWorkspace);
         this.CreateClient();
     }
+    // Socket version of connection
     async ConnectToCharacterViaSocket(characterId, playerName, socket) {
         try {
             this.genericCharacterId = null;
@@ -217,3 +219,4 @@ export default class InworldClientManager {
         this.client.setConfiguration({ connection: defaultConfigurationConnection, capabilities: this.currentCapabilities });
     }
 }
+//# sourceMappingURL=InworldManager.js.map

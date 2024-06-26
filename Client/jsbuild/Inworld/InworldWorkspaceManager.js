@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 const ALL_CHARACTERS = JSON.parse(fs.readFileSync(path.resolve("./World/SkyrimCharacters.json"), 'utf-8'));
 const GENERIC_CHARACTERS = JSON.parse(fs.readFileSync(path.resolve("./World/SkyrimGenericCharacters.json"), 'utf-8'));
 const SKYRIM_KNOWLEDGE = JSON.parse(fs.readFileSync(path.resolve("./World/SkyrimKnowledge.json"), 'utf-8'));
+// https://studio.inworld.ai/studio/v1/workspaces/{WORKSPACE}/common-knowledge?pageSize=20
 const WORKSPACE_NAME = process.env.INWORLD_WORKSPACE;
 const SHARED_KNOWLEDGE_URL = "https://studio.inworld.ai/studio/v1/workspaces/" + WORKSPACE_NAME + "/common-knowledge?pageSize=500";
 const CREATE_URI = "https://studio.inworld.ai/studio/v1/workspaces/" + WORKSPACE_NAME + "/characters?skipAutoCreate=true";
@@ -62,7 +63,7 @@ export default class InworldWorkspaceManager {
             for (let k = 0; k < this.characterList.length; k++) {
                 let charData = this.characterList[k];
                 let charName = this.GetNameFromPath(charData.name);
-                let expectedName = this.GetNameFromPath(data.name);
+                let expectedName = this.GetNameFromPath(data.name); // data.name.replace("{WORKSPACE}", WORKSPACE_NAME);
                 if (expectedName.toLowerCase() == charName.toLowerCase()) {
                     isExist = true;
                 }
@@ -96,6 +97,7 @@ export default class InworldWorkspaceManager {
         console.log(`${data.defaultCharacterDescription.givenName} is now ready to use.`);
         console.logToLog(`${data.defaultCharacterDescription.givenName} is now ready to use.`);
         if (this.waitingCharacters.length <= 0) {
+            // refresh
             console.log(`all created. refreshing all character data`);
             await this.PopulateCharacters();
         }
@@ -163,6 +165,7 @@ export default class InworldWorkspaceManager {
             console.error(e);
         }
     }
+    // "workspaces/{WORKSPACE}/common-knowledges/823bf2a7-83e6-489d-b81f-5abfb8dc3165"
     async UpdateDialogueHistory(name, history) {
         try {
             let character = null;
@@ -282,3 +285,4 @@ export default class InworldWorkspaceManager {
         return headerConfig;
     }
 }
+//# sourceMappingURL=InworldWorkspaceManager.js.map

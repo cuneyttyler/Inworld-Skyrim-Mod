@@ -185,6 +185,7 @@ public:
                 InworldCaller::ShowReplyMessage(message);
                 InworldCaller::conversationActor = nullptr;
                 InworldCaller::conversationPair = nullptr;
+                InworldCaller::connecting = false;
             } else if (type == "doesntexist" && is_n2n) {
                 InworldCaller::ShowReplyMessage(message);
                 InworldCaller::N2N_SourceActor = nullptr;

@@ -71,6 +71,8 @@ export class AudioProcessor extends EventEmitter {
         }
     }
     async processAudioStream(data) {
+        // Your audio processing logic here.
+        // Simulating async processing with a timeout.
         return new Promise(async (resolve) => {
             try {
                 let duration = await this.saveAudio(data.chunk, data.voiceFileName, data.text, data.stepCount, data.temp_file_suffix);
@@ -103,11 +105,13 @@ export class AudioProcessor extends EventEmitter {
             var voiceType = VoiceTypes[i];
             var outputFolder = process.env.SKYRIM_MODS_FOLDER + "\\InworldSkyrim\\Sound\\Voice\\InworldUIHelper.esp\\" + voiceType + "\\";
             if (!fs.existsSync(outputFolder)) {
+                // Folder does not exist, so create it
                 fs.mkdir(outputFolder, (err) => {
                     if (err) {
                         console.error("Error creating folder");
                     }
                     else {
+                        // console.log("Voice Folder created successfully. {" + outputFolder + "}");
                     }
                 });
             }
@@ -130,6 +134,7 @@ export class AudioProcessor extends EventEmitter {
             const outputFolder = process.env.SKYRIM_MODS_FOLDER + "\\InworldSkyrim\\Sound\\Voice\\InworldUIHelper.esp\\" + voiceType + "\\";
             const audioFile = outputFolder + voiceFileName + ".wav";
             const lipFile = outputFolder + voiceFileName + ".lip";
+            // Copying the file to a the same name
             fs.copyFileSync('./Audio/Temp/' + voiceFileName + '_' + stepCount + '.wav', audioFile);
             fs.copyFileSync('./Audio/Temp/' + voiceFileName + '_' + stepCount + '.lip', lipFile);
         }
@@ -141,3 +146,4 @@ export class AudioProcessor extends EventEmitter {
         return duration;
     }
 }
+//# sourceMappingURL=AudioProcessor.js.map

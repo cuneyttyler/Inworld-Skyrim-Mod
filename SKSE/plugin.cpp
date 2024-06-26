@@ -69,10 +69,11 @@ static class InworldCaller {
 public:
     inline static RE::Actor* conversationActor;
     inline static RE::Actor* conversationPair;
+    inline static bool connecting = false;
+    inline static bool conversationOngoing = false;
     inline static int n2n_established_response_count = 0;
     inline static RE::Actor* N2N_SourceActor;
     inline static RE::Actor* N2N_TargetActor;
-    inline static bool endingConversation = false;
 
     static void MoveToPlayerWithMargin(RE::Actor* conversationActor) {
         SKSE::ModCallbackEvent modEvent{"BLC_SetActorMoveToPlayer", 0, 0.0f, conversationActor};
@@ -143,7 +144,7 @@ public:
     static void Stop() {
         SKSE::ModCallbackEvent modEvent{"BLC_Stop", "", 1.0f, nullptr};
         SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
-        InworldCaller::endingConversation = true;
+        InworldCaller::conversationOngoing = false;
         InworldCaller::conversationPair = nullptr;
         InworldCaller::conversationActor = nullptr;
     }
@@ -168,6 +169,8 @@ public:
 
     static void ConnectionSuccessful() {
         InworldCaller::conversationPair = conversationActor;
+        InworldCaller::conversationOngoing = true;
+        InworldCaller::connecting = false;
         SetHoldPosition(0, conversationActor);
     }
 
@@ -175,7 +178,7 @@ public:
         SKSE::ModCallbackEvent modEvent{"BLC_Speak", "", 0.0075f, InworldCaller::conversationActor};
         SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
         SubtitleManager::ShowSubtitle(message, duration);
-        if (endingConversation) {
+        if (!InworldCaller::conversationOngoing) {
             SetHoldPosition(1, InworldCaller::conversationActor);
             InworldCaller::conversationPair = nullptr;
             InworldCaller::conversationActor = nullptr;
@@ -366,11 +369,10 @@ public:
                     }
                     // U key
                 } else if (dxScanCode == 22) {
-                    if (buttonEvent->IsDown() && conversationPair != nullptr &&
-                        (InworldCaller::conversationPair == nullptr ||
-                         InworldCaller::conversationPair != conversationPair)) {
+                    if (buttonEvent->IsDown() && conversationPair != nullptr && !InworldCaller::conversationOngoing && !InworldCaller::connecting) {
+                        InworldCaller::connecting = true;
                         InworldCaller::Start(conversationPair);
-                    } else if (buttonEvent->IsDown() && InworldCaller::conversationPair != nullptr) {
+                    } else if (buttonEvent->IsDown() && InworldCaller::conversationOngoing) {
                         if (!isOpenedWindow) OnPlayerRequestInput("UITextEntryMenu");
                     }
                     // Y key

@@ -140,3 +140,4 @@ export default class DialogueManager {
         return this.conversationOngoing;
     }
 }
+//# sourceMappingURL=DialogueManager.js.map

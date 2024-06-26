@@ -60,12 +60,13 @@ export class SkyrimInworldSocketController {
                 }));
             }, 100);
         }
-        else if (msg.emotions) {
+        else if (msg.emotions) { // dont use for now
         }
         else if (msg.phonemes) {
+            // console.log(msg.phonemes)
         }
         else if (msg.isText()) {
-            if (msg.routing.targets.length > 0 && msg.routing.targets[0].isCharacter) {
+            if (msg.routing.targets.length > 0 && msg.routing.targets[0].isCharacter) { // Always overwrite user input
                 this.CombinedUserInput = msg.text.text;
             }
             else {
@@ -114,3 +115,4 @@ export class SkyrimInworldSocketController {
         this.socket.send(JSON.stringify(userData));
     }
 }
+//# sourceMappingURL=SkyrimInworldSocketController.js.map

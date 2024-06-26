@@ -82,6 +82,7 @@ logToLog("=============================S=T=A=R=T=I=N=G===T=H=E===M=O=D==========
 fastify.get('/ping', (request, reply) => {
     return { 'status': "OK" };
 });
+// Socket connection for better communication channel
 fastify.register(async function (fastify) {
     fastify.get('/chat', {
         websocket: true
@@ -162,6 +163,7 @@ fastify.register(async function (fastify) {
         });
     });
 });
+// Run the server!
 const StartEngine = async () => {
     try {
         let portOnConfig = parseInt(process.env.CLIENT_PORT);
@@ -236,10 +238,10 @@ function logToLog(message) {
     const timestamp = new Date().toISOString();
     const logMessage = `${timestamp} - ${message}`;
     const logFileName = "InworldClient.log";
-    if (fs.existsSync(logFileName)) {
+    if (fs.existsSync(logFileName)) { // File exists, append to it
         fs.appendFileSync(logFileName, logMessage + '\n', 'utf8');
     }
-    else {
+    else { // File does not exist, create it and write the log message
         fs.writeFileSync(logFileName, logMessage + '\n', 'utf8');
     }
 }
@@ -247,10 +249,11 @@ export function logToErrorLog(message) {
     const timestamp = new Date().toISOString();
     const logMessage = `${timestamp} - ${message}`;
     const logFileName = "InworldClientError.log";
-    if (fs.existsSync(logFileName)) {
+    if (fs.existsSync(logFileName)) { // File exists, append to it
         fs.appendFileSync(logFileName, logMessage + '\n', 'utf8');
     }
-    else {
+    else { // File does not exist, create it and write the log message
         fs.writeFileSync(logFileName, logMessage + '\n', 'utf8');
     }
 }
+//# sourceMappingURL=SkyrimClient.js.map

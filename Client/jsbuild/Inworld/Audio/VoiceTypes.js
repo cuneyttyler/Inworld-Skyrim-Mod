@@ -76,3 +76,4 @@ export const VoiceTypes = [
     "MaleUniqueNazir",
     "MaleUniqueSeptimus",
 ];
+//# sourceMappingURL=VoiceTypes.js.map

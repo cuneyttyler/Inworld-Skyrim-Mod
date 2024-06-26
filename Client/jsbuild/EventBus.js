@@ -7,3 +7,4 @@ export default class EventBus {
         return this.singleton;
     }
 }
+//# sourceMappingURL=EventBus.js.map
