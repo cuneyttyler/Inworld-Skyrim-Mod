@@ -204,6 +204,12 @@ export default class InworldClientManager {
         // this.socketController.SendEndSignal()
     }
 
+    AddParticipant(characterId) {
+        let resourceName = 'workspaces/' + WORKSPACE_NAME + '/characters/' + characterId.toLowerCase()
+        this.participants.push(resourceName)
+        return resourceName
+    }
+
     async StartTalking() {
         if (!this.isAudioSessionStarted) {
             await this.connection.sendAudioSessionStart();

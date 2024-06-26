@@ -198,9 +198,12 @@ export function logToErrorLog(message: string): void {
 const conv = ["There's a problem with my work. I can't get my salary on date.", "There's a problem with my work. I can't get my salary on date."
     , "Can you describe the problem in legal terms?", "Can you describe the problem in legal terms?", "What is your suggestion for me?", "What is your suggestion for me?"
 ]
-let names = ["Rosemary", "Roger"]
+let names = ["Rosemary", "Roger", 'Bob']
 class DialogManager {
     private participants = []
+    private interrupting = false
+    private interrupter;
+    private order = 0;
 
     async run() {
         console.log("Establishing connection.")
@@ -210,16 +213,29 @@ class DialogManager {
         ClientManager.SendTrigger("n2n_initiate_event", {characterName: this.participants[0], parameters: [{name: "listener", value: names[1]}]})
 
         EventBus.GetSingleton().on('CONTINUE_CONVERSATION', (data) => {
-            for(let i = 0; i < this.participants.length; i++) {
-                if(i != data.speaker) {
-                    console.log('============================')
-                    console.log("Sending continue trigger to " + names[i] + " from " + names[data.speaker])
-                    console.log(`Message: ${data.message}`)
-                    ClientManager.SendTrigger("n2n_continue_event", {characterName: this.participants[i], 
-                        parameters:[{name: 'speaker', value: names[data.speaker]}, {name:'message', value: data.message}]})           
-                }
+            console.log('============================')
+            console.log(`Message(${data.speaker}): ${data.message}`)
+            if(this.interrupting) {
+                console.log("Sending interrupt trigger from " + names[names.length - 1] + " with response to " + names[data.speaker])
+                ClientManager.SendTrigger("n2n_continue_event", {characterName: this.interrupter, 
+                    parameters:[{name: 'speaker', value: names[data.speaker]}, {name:'message', value: data.message}]})        
+                this.interrupting = false
+                this.interrupter = null
+                return
             }
+
+            let index = ++this.order % this.participants.length
+            index = index == data.speaker ? (index + 1) % this.participants.length : index
+            console.log("Sending continue trigger to " + names[index] + " from " + names[data.speaker])
+            ClientManager.SendTrigger("n2n_continue_event", {characterName: this.participants[index], 
+                parameters:[{name: 'speaker', value: names[data.speaker]}, {name:'message', value: data.message}]})           
         })
+
+        setTimeout(() => {        
+            console.log("Interrupting...")
+            this.interrupting = true
+            this.interrupter = ClientManager.AddParticipant('Bob')
+        }, 30000)
     }
 }
 
