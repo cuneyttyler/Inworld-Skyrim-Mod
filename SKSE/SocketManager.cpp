@@ -164,8 +164,6 @@ public:
             int speaker = j["speaker"];
             float duration = j["duration"];
 
-            RE::ConsoleLog::GetSingleton()->Print("on_message");
-
             if (type == "established" && !is_n2n) {
                 InworldCaller::ShowReplyMessage("NPC is listening...");
                 InworldCaller::ConnectionSuccessful();

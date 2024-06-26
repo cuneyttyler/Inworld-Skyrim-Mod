@@ -80,9 +80,10 @@ export default class InworldClientManager {
                 let port = parseInt(process.env.AUDIO_PORT);
                 this.blcRecorder = new BLCRecorder("127.0.0.1", port);
                 this.blcRecorder.connect(this.connection);
+                this.socketController.SetRecorder(this.blcRecorder);
             }
-            this.socketController.SetRecorder(this.blcRecorder);
             this.characterName = id;
+            console.log("Starting audio session...");
             await this.connection.sendAudioSessionStart();
             let verifyConnection = GetSocketResponse("connection established", "1-1", "established", 0, this.is_n2n, this.speaker);
             console.log("Connection to " + id + " is succesfull" + JSON.stringify(verifyConnection));

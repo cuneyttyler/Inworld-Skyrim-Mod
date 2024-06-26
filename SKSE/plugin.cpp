@@ -137,6 +137,7 @@ public:
     static void Start(RE::Actor* actor) {
         SKSE::ModCallbackEvent modEvent{"BLC_Start", "", 1.0f, actor};
         SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
+        InworldCaller::conversationPair = nullptr;
     }
 
     static void Stop() {

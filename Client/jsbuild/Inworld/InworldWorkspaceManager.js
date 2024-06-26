@@ -11,6 +11,7 @@ const SHARED_KNOWLEDGE_URL = "https://studio.inworld.ai/studio/v1/workspaces/" +
 const CREATE_URI = "https://studio.inworld.ai/studio/v1/workspaces/" + WORKSPACE_NAME + "/characters?skipAutoCreate=true";
 const GET_CHARACTERS = "https://studio.inworld.ai/studio/v1/workspaces/" + WORKSPACE_NAME + "/characters?pageSize=100";
 const DEPLOY_CHARACTERS = "https://studio.inworld.ai/studio/v1/=CHARACTER_ID=:deploy";
+const SCENE_URI = "https://studio.inworld.ai/studio/v1/workspaces/skyrim-abrln/scenes";
 export default class InworldWorkspaceManager {
     loginManager;
     characterList;
@@ -28,6 +29,24 @@ export default class InworldWorkspaceManager {
             let createdCharacters = await this.CreateMissingCharacters();
             await this.DeployCharacters(createdCharacters);
         }
+    }
+    async UpdateScene() {
+        let headers = await this.GetHeader();
+        let response = await axios.get(SCENE_URI, { headers: headers });
+        let scenes = response.data.scenes;
+        if (scenes.length == 0) {
+            return;
+        }
+        let scene = scenes[0];
+        let characters = [];
+        for (let i in this.characterList) {
+            characters.push({ "character": this.characterList[i].name, "displayTitle": this.characterList[i].defaultCharacterAssets.givenName, "imageUri": "", "additionalAgentInfo": "" });
+        }
+        scene.characters = characters;
+        axios.patch("https://studio.inworld.ai/studio/v1/workspaces/skyrim-abrln/scenes/genericscene", JSON.stringify(scene), { headers: headers });
+        setTimeout(() => {
+            axios.post("https://studio.inworld.ai/studio/v1/workspaces/skyrim-abrln/scenes/genericscene:deploy");
+        }, 5000);
     }
     GetNameFromPath(path) {
         let arr = path.split("/");
