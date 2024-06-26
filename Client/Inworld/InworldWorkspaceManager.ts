@@ -12,7 +12,7 @@ const SKYRIM_KNOWLEDGE = JSON.parse(fs.readFileSync(path.resolve("./World/Skyrim
 const WORKSPACE_NAME = process.env.INWORLD_WORKSPACE;
 const SHARED_KNOWLEDGE_URL: string = "https://studio.inworld.ai/studio/v1/workspaces/" + WORKSPACE_NAME + "/common-knowledge?pageSize=500"
 const CREATE_URI = "https://studio.inworld.ai/studio/v1/workspaces/" + WORKSPACE_NAME + "/characters?skipAutoCreate=true";
-const GET_CHARACTERS = "https://studio.inworld.ai/studio/v1/workspaces/" + WORKSPACE_NAME + "/characters";
+const GET_CHARACTERS = "https://studio.inworld.ai/studio/v1/workspaces/" + WORKSPACE_NAME + "/characters?pageSize=100";
 const DEPLOY_CHARACTERS = "https://studio.inworld.ai/studio/v1/=CHARACTER_ID=:deploy"
 
 export default class InworldWorkspaceManager {
@@ -102,6 +102,7 @@ export default class InworldWorkspaceManager {
         let headers = await this.GetHeader();
         let response = await axios.get(GET_CHARACTERS, {headers: headers});
         this.characterList = response.data.characters;
+        console.log(this.characterList.length + " characters loaded.")
     }
 
     private async DeployCharacters(createdCharacters) {

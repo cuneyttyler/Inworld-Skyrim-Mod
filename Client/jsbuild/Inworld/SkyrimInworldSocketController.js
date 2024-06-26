@@ -11,6 +11,8 @@ export class SkyrimInworldSocketController {
     CurrentResponse = "";
     ResponseIndex = -1;
     AudioStrings = [];
+    FollowAcceptResponse = "Of course. I'll join you.";
+    FollowDeclineResponse = "I'm sorry, I have other priorities to attend to.";
     audioProcessor = new AudioProcessor();
     Recorder;
     DisableAudio;
@@ -78,6 +80,10 @@ export class SkyrimInworldSocketController {
                 let response = this.Responses.join(' ');
                 if (!is_n2n) {
                     EventBus.GetSingleton().emit('TARGET_RESPONSE', response);
+                    if (response == this.FollowAcceptResponse) {
+                        let payload = GetSocketResponse("", "", "follow_request_accepted", 0, is_n2n, target);
+                        this.socket.send(JSON.stringify(payload));
+                    }
                 }
                 else if (is_n2n && speaker == 0 && !is_ending) {
                     EventBus.GetSingleton().emit('SOURCE_TARGET_RESPONSE', response);

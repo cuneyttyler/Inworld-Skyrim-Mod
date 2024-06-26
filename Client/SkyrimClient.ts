@@ -78,12 +78,12 @@ function SaveEventLog(id, log) {
 }
 
 process.on('uncaughtException', function  (err, origin) {
-    // console.error('Caught exception: ', err, origin);
+    console.error('Caught exception: ', err, origin);
     logToErrorLog(JSON.stringify({err, origin}));
 });
 
 process.on('unhandledRejection', function (err, origin) {
-    // console.error('Caught rejection: ', err, origin);
+    console.error('Caught rejection: ', err, origin);
     logToErrorLog(JSON.stringify({err, origin}));
 });
 
