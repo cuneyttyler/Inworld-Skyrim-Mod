@@ -7,7 +7,6 @@ import { DialogParticipant } from '@inworld/nodejs-sdk';
 import DialogueManager from './DialogueManager.js';
 import EventBus from './EventBus.js';
 import path from "path";
-import waitSync from 'wait-sync';
 const resolved = path.resolve(".env");
 console.log("Reading .env from location: ", resolved);
 try {
@@ -97,13 +96,14 @@ fastify.register(async function (fastify) {
                         talker: DialogParticipant.UNKNOWN,
                         phrase: 'In ' + message.location + ', on ' + message.currentDateTime + ', you started to talk with ' + process.env.PLAYER_NAME + '. '
                     });
-                    waitSync(2);
-                    ClientManager.SendNarratedAction('Please keep your answers. short.');
-                    let events = GetEvents(message.id);
-                    if (events && events != "") {
-                        console.log("Sending event log.");
-                        ClientManager.SendNarratedAction("This is what happened previously: " + events);
-                    }
+                    setTimeout(() => {
+                        ClientManager.SendNarratedAction('Please keep your answers. short.');
+                        let events = GetEvents(message.id);
+                        if (events && events != "") {
+                            console.log("Sending event log.");
+                            ClientManager.SendNarratedAction("This is what happened previously: " + events);
+                        }
+                    }, 5000);
                 }
             }
             else if (message.type == "start_listen" && !message.is_n2n) {

@@ -76,6 +76,7 @@ export default class InworldClientManager {
                     previousDialog: dialogueHistory
                 });
             this.connection = this.client.build();
+            this.connection.addCharacters(["workspaces/" + WORKSPACE_NAME + "/characters/{CHARACTER_NAME}".replace("{CHARACTER_NAME}", id)]);
             this.IsConnected = true;
             if (!this.is_n2n && !this.isVoiceConnected) {
                 console.log("Creating voice listener connection");
@@ -85,15 +86,17 @@ export default class InworldClientManager {
                 this.socketController.SetRecorder(this.blcRecorder);
             }
             this.characterName = id;
-            console.log("Starting audio session...");
-            await this.connection.sendAudioSessionStart();
+            // console.log("Starting audio session...")
+            // await this.connection.sendAudioSessionStart();
             let verifyConnection = GetSocketResponse("connection established", "1-1", "established", 0, this.is_n2n, this.speaker);
             console.log("Connection to " + id + " is succesfull" + JSON.stringify(verifyConnection));
             console.logToLog(`Connection to ${id} is succesfull.`);
             this.isAudioSessionStarted = true;
-            console.log("Sending verify connection, speaker: " + this.speaker);
-            socket.send(JSON.stringify(verifyConnection));
-            this.conversationOngoing = true;
+            setTimeout(() => {
+                console.log("Sending verify connection, speaker: " + this.speaker);
+                socket.send(JSON.stringify(verifyConnection));
+                this.conversationOngoing = true;
+            }, 2000);
             return 1;
         }
         catch (err) {
