@@ -50,12 +50,6 @@ export class SkyrimInworldSocketController {
         }
 
         if (msg.type == 'AUDIO') { 
-            let arr = msg.audio.additionalPhonemeInfo;
-            arr.forEach(ph => {
-                if (ph.phoneme != "<INTERSPERSE_CHARACTER>") 
-                    this.CombinedPhoneme += ph.phoneme
-                
-            });
             setTimeout(()=> {
                 this.audioProcessor.addAudioStream(new AudioData(msg.audio.chunk, topic_filename, this.Responses[this.ResponseIndex], this.stepCount, temp_file_suffix, (duration) => {
                     let result = GetSocketResponse(this.CurrentResponse, this.CombinedPhoneme, "chat", duration, null, null);
