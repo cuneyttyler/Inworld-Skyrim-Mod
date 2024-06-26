@@ -5,7 +5,7 @@ build
 cmake-build*
 node_module*
 Client/node_module*
-Client/jsbuild
+Client/out
 Client/package-lock*
 Client/SkyrimClient.exe*
 Client/InworldClient.log
