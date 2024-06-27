@@ -11,7 +11,7 @@ package property InworldStandPackage auto
 package property InworldN2NStandPackage auto
 formlist property DefaultNPCVoiceTypes auto
 GlobalVariable property N2N_ConversationOnGoing auto
-GlobalVariable property N2N_Last_Successful_Start auto
+GlobalVariable property N2N_LastSuccessfulStart auto
 faction property CurrentFollowerFaction auto
 faction property PotentialFollowerFaction auto
 ; quest property InworldDialogueQuest auto
@@ -80,6 +80,9 @@ function TravelToNPCLocation(String eventName, String strArg, Float numArg, Form
 endFunction
 
 function _Start(String eventName, String strArg, Float numArg, Form sender) 
+    If (sender as Actor) == None || (sender as Actor) == source_n2n.GetActorRef() || (sender as Actor) == target_n2n.GetActorRef()
+        debug.Trace("Inworld: Actor is currently engaged in converation with another NPC.")
+    EndIf
     debug.Trace("Inworld: Start Dialogue")
     dialogueOngoing = True
     InworldSKSE.Start(sender as Actor, Utility.GameTimeToString(Utility.GetCurrentGameTime()))
@@ -114,7 +117,7 @@ endFunction
 function Start_N2N(String eventName, String strArg, Float numArg, Form sender)
     Debug.Trace("Inworld: Starting N2N Dialogue.")
     N2N_ConversationOnGoing.SetValue(1)
-    N2N_Last_Successful_Start.SetValueInt((Utility.GetCurrentRealTime() as int) % 1000)
+    N2N_LastSuccessfulStart.SetValueInt((Utility.GetCurrentRealTime() as int) % 1000)
 endFunction
 
 function Start_N2N_Source(String eventName, String strArg, Float numArg, Form sender)
@@ -137,13 +140,13 @@ endFunction
 
 function Speak_N2N(String eventName, String strArg, Float numArg, Form sender) 
     debug.Trace("Inworld: Speak request for " + numArg + " -> " + (sender as Actor).GetDisplayName())
-    If numArg == 0
+    If numArg == 0 && N2N_ConversationOnGoing.GetValueInt() == 1
         source_n2n.GetActorRef().Say(source_n2n_topic)
-    Else
+    ElseIf N2N_ConversationOnGoing.GetValueInt() == 1
         target_n2n.GetActorRef().Say(target_n2n_topic)
     EndIf
 endFunction
 
 bool function IsAvailableForDialogue(Actor _actor)
-    return DefaultNPCVoiceTypes.HasForm(_actor.GetVoiceType())    
+    return DefaultNPCVoiceTypes.HasForm(_actor.GetVoiceType()) && !_actor.IsAlerted() && !_actor.IsAlarmed()  && !_actor.IsBleedingOut() && !_actor.isDead() && !_actor.IsUnconscious()
 endFunction

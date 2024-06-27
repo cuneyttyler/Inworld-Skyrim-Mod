@@ -30,6 +30,7 @@ int Function FindAllNpcsInArea()
     foundActors[0] = Game.GetPlayer()
     int i = 0
     int j = 1
+    int k = 0
     While i < 20
         Actor _actor = FindNonPlayerActor()
         If _actor != None 
@@ -44,10 +45,10 @@ int Function FindAllNpcsInArea()
     i = 0
     While i < MAX_ACTOR_COUNT
         If foundActors[i] != None && !IsInArray(foundActors[i], actors) && !locationChanged && !firstRun
-            int k = 0
+            k = 0
             While k < MAX_ACTOR_COUNT
                 If actors[i] != None
-                    InworldSKSE.LogEvent(actors[k], actors[i].GetDisplayName() + " has arrived to " + Game.GetPlayer().GetCurrentLocation().GetName())
+                    InworldSKSE.LogEvent(actors[k], foundActors[i].GetDisplayName() + " has arrived to " + Game.GetPlayer().GetCurrentLocation().GetName())
                     k += 1
                 EndIf
             EndWhile
@@ -57,8 +58,8 @@ int Function FindAllNpcsInArea()
 
     i = 0
     While i < MAX_ACTOR_COUNT
-        If !IsInArray(actors[i], foundActors) && actors[i] != None
-            int k = 0
+        If actors[i] != None && !IsInArray(actors[i], foundActors)
+            k = 0
             While k < MAX_ACTOR_COUNT
                 InworldSKSE.LogEvent(actors[k], actors[i].GetDisplayName() + " has left " +  Game.GetPlayer().GetCurrentLocation().GetName())
                 k += 1
@@ -70,7 +71,7 @@ int Function FindAllNpcsInArea()
     actors = foundActors
     AssignActorsToRefs()
     If locationChanged
-        int k = 0
+        k = 0
         While k < MAX_ACTOR_COUNT
             InworldSKSE.LogEvent(actors[k], Game.GetPlayer().GetDisplayName() + " has arrived to " + Game.GetPlayer().GetCurrentLocation().GetName())
             k += 1
