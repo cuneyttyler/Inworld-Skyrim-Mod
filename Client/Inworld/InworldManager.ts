@@ -23,7 +23,7 @@ export default class InworldClientManager {
     private isVoiceConnected = false;
     private isAudioSessionStarted = false;
     private is_n2n = false;
-    private speaker = false;
+    private speaker;
     private characterName: string;
     private conversationOngoing;
     private is_ending = false;
@@ -69,7 +69,7 @@ export default class InworldClientManager {
                 throw errorResult
             }
             console.log("Requesting connecting to " + id);
-            let scene = "workspaces/" + WORKSPACE_NAME + "/characters/{CHARACTER_NAME}".replace("{CHARACTER_NAME}", id);
+            let scene = await this.workspaceManager.UpdateScene(!this.is_n2n ? 0 : this.speaker + 1, [id]);
             this.client.setUser({fullName: playerName});
             this.client.setScene(scene);
             this.is_ending = false;
@@ -87,7 +87,6 @@ export default class InworldClientManager {
                     previousDialog: dialogueHistory
                 });
             this.connection = this.client.build();
-            this.connection.addCharacters([ "workspaces/" + WORKSPACE_NAME + "/characters/{CHARACTER_NAME}".replace("{CHARACTER_NAME}", id)])
             this.IsConnected = true;
             if (!this.is_n2n && !this.isVoiceConnected) {
                 console.log("Creating voice listener connection");
@@ -170,6 +169,10 @@ export default class InworldClientManager {
           console.error('Error reading or parsing the file:', err);
           return
         }
+    }
+
+    CleanupScene() {
+        this.workspaceManager.UpdateScene(!this.is_n2n ? 0 : 1, [])
     }
 
     async SaveDialogueHistory(id, history) {

@@ -86,7 +86,7 @@ fastify.register(async function (fastify) {
     fastify.get('/chat', {
         websocket: true
     }, (connection, req) => {
-        connection.socket.on('message', msg => {
+        connection.socket.on('message', async (msg) => {
             let message = JSON.parse(msg.toString());
             console.log("Message received", message);
             if (message.type == "connect" && !message.is_n2n) {
@@ -103,7 +103,7 @@ fastify.register(async function (fastify) {
                             console.log("Sending event log.");
                             ClientManager.SendNarratedAction("This is what happened previously: " + events);
                         }
-                    }, 5000);
+                    }, 2000);
                 }
             }
             else if (message.type == "start_listen" && !message.is_n2n) {
@@ -121,12 +121,13 @@ fastify.register(async function (fastify) {
             }
             else if (message.type == "stop" && !message.is_n2n) {
                 ClientManager.SaveDialogueHistory(message.id, dialogueHistory);
+                ClientManager.CleanupScene();
                 dialogueHistory = [];
             }
             else if (message.type == "connect" && message.is_n2n) {
-                ClientManager_DungeonMaster.ConnectToCharacterViaSocket(message.source, "DungeonMaster", connection.socket);
-                ClientManager_N2N_Source.ConnectToCharacterViaSocket(message.target, message.source, connection.socket);
-                ClientManager_N2N_Target.ConnectToCharacterViaSocket(message.source, message.target, connection.socket);
+                await ClientManager_DungeonMaster.ConnectToCharacterViaSocket(message.source, "DungeonMaster", connection.socket);
+                await ClientManager_N2N_Source.ConnectToCharacterViaSocket(message.target, message.source, connection.socket);
+                await ClientManager_N2N_Target.ConnectToCharacterViaSocket(message.source, message.target, connection.socket);
                 let sourceEvents = GetEvents(message.source);
                 if (sourceEvents && sourceEvents != "") {
                     console.log("Sending source event log.");
@@ -145,6 +146,9 @@ fastify.register(async function (fastify) {
             else if (message.type == "stop" && message.is_n2n) {
                 if (dialogueManager && dialogueManager.running()) {
                     dialogueManager.stop();
+                    ClientManager_DungeonMaster.CleanupScene();
+                    ClientManager_N2N_Source.CleanupScene();
+                    ClientManager_N2N_Target.CleanupScene();
                 }
             }
             else if (message.type == "log_event") {

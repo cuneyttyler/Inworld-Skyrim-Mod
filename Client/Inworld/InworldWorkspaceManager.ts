@@ -14,7 +14,7 @@ const SHARED_KNOWLEDGE_URL: string = "https://studio.inworld.ai/studio/v1/worksp
 const CREATE_URI = "https://studio.inworld.ai/studio/v1/workspaces/" + WORKSPACE_NAME + "/characters?skipAutoCreate=true";
 const GET_CHARACTERS = "https://studio.inworld.ai/studio/v1/workspaces/" + WORKSPACE_NAME + "/characters?pageSize=100";
 const DEPLOY_CHARACTERS = "https://studio.inworld.ai/studio/v1/=CHARACTER_ID=:deploy"
-const SCENE_URI = "https://studio.inworld.ai/studio/v1/workspaces/skyrim-abrln/scenes"
+const SCENE_URI = "https://studio.inworld.ai/studio/v1/workspaces/" + WORKSPACE_NAME + "/scenes"
 
 export default class InworldWorkspaceManager {
     private loginManager;
@@ -36,23 +36,45 @@ export default class InworldWorkspaceManager {
         }
     }
 
-    private async UpdateScene() {
+    async UpdateScene(type: number, ids: string[], append: boolean = false) {
         let headers = await this.GetHeader();
         let response = await axios.get(SCENE_URI, {headers: headers})
         let scenes = response.data.scenes
         if(scenes.length == 0) {
             return
         }
-        let scene = scenes[0]
-        let characters = []
-        for(let i in this.characterList) {
-            characters.push({"character": this.characterList[i].name, "displayTitle": this.characterList[i].defaultCharacterAssets.givenName, "imageUri": "", "additionalAgentInfo": ""})
+        let sceneId : string = ""
+        if(type == 0) {
+            sceneId = "workspaces/" + WORKSPACE_NAME + "/scenes/genericscene"
+        } else if(type == 1) {
+            sceneId = "workspaces/" + WORKSPACE_NAME + "/scenes/genericscene_n2n_0"
+        } else if(type == 2) {
+            sceneId = "workspaces/" + WORKSPACE_NAME + "/scenes/genericscene_n2n_1"
+        } else if(type == 3) {
+            sceneId = "workspaces/" + WORKSPACE_NAME + "/scenes/genericscene_n2n_2"
+        } else {
+            throw "Unknown Scene Type!"
         }
+        let scene = scenes.find((s) => s.name === sceneId)
+        if(!scene) {
+            throw "Scene doesn't exist on database."
+        }
+        let characters = []
+        if(append) {
+            characters = scene.characters
+        }
+        for(let i in ids) {
+            let c = this.characterList.find((c) => c.name === "workspaces/" + WORKSPACE_NAME + "/characters/" + ids[i])
+            if(!c) {
+                throw "Character is not in database: " + ids[i]
+            }
+            characters.push({"character": c.name, "displayTitle": c.defaultCharacterDescription.givenName, "imageUri": "", "additionalAgentInfo": ""})
+        }
+        console.log("Updating " + sceneId + " with " + JSON.stringify(characters))
         scene.characters = characters
-        axios.patch("https://studio.inworld.ai/studio/v1/workspaces/skyrim-abrln/scenes/genericscene", JSON.stringify(scene), {headers: headers})   
-        setTimeout(() => {
-            axios.post("https://studio.inworld.ai/studio/v1/workspaces/skyrim-abrln/scenes/genericscene:deploy")  
-        }, 5000)
+        await axios.patch("https://studio.inworld.ai/studio/v1/" + sceneId, JSON.stringify(scene), {headers: headers})
+        await axios.post("https://studio.inworld.ai/studio/v1/" + sceneId + ":deploy", null, {headers: headers})
+        return sceneId
     }
 
     private GetNameFromPath(path : string){
