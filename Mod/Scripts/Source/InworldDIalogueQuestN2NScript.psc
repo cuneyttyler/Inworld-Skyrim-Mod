@@ -1,8 +1,9 @@
 Scriptname InworldDialogueQuestN2NScript extends Quest  
 
-formlist property DefaultNPCVoiceTypes auto
+formlist property _InworldVoiceTypes auto
 globalvariable property N2N_ConversationOnGoing auto
 GlobalVariable property N2N_LastSuccessfulStart auto
+ReferenceAlias property normalTarget auto
 
 int initiateTimeInterval = 180
 int initiateSamePairTimeInterval = 300
@@ -56,6 +57,6 @@ bool function IsSameActors(Actor source, Actor target)
 endFunction 
 
 bool function IsAvailableForDialogue(Actor _actor)
-    return DefaultNPCVoiceTypes.HasForm(_actor.GetVoiceType()) && !_actor.IsAlerted() && !_actor.IsAlarmed()  && !_actor.IsBleedingOut() && !_actor.isDead() && !_actor.IsUnconscious()
+    return _InworldVoiceTypes.HasForm(_actor.GetVoiceType()) && normalTarget.GetActorRef() != _actor && _actor.IsEnabled() && !_actor.IsAlerted() && !_actor.IsAlarmed()  && !_actor.IsBleedingOut() && !_actor.isDead() && !_actor.IsUnconscious()
 endFunction
 

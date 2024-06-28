@@ -128,7 +128,9 @@ Actor[] Function GetRefsAsActors()
     Actor[] actors = new Actor[20]
     int i = 0
     While i < 20
-        actors[i] = ActorRefs[i].GetActorRef()
+        If ActorRefs[i] != None
+            actors[i] = ActorRefs[i].GetActorRef()
+        EndIf
         i += 1
     EndWhile
 

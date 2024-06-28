@@ -8,7 +8,7 @@ bool firstRun = True
 actor[] actors
 
 ReferenceAlias[] property ActorRefs auto
-formlist property DefaultNPCVoiceTypes auto
+formlist property _InworldVoiceTypes auto
 
 Event OnInit()
     actors = new Actor[20]
@@ -97,7 +97,7 @@ Actor Function FindNonPlayerActor()
     int i = 0
     While i < 5
         Actor _actor = Game.FindRandomActorFromRef(Game.GetPlayer(), 1000)
-        If _actor != Game.GetPlayer() && IsAvailableForDialogue(_actor)
+        If _actor != Game.GetPlayer() && IsAvailable(_actor)
             Return _actor
         EndIf
         i += 1
@@ -106,8 +106,8 @@ Actor Function FindNonPlayerActor()
     Return None
 EndFunction
 
-bool function IsAvailableForDialogue(Actor _actor)
-    return DefaultNPCVoiceTypes.HasForm(_actor.GetVoiceType())    
+bool function IsAvailable(Actor _actor)
+    return _InworldVoiceTypes.HasForm(_actor.GetVoiceType())  && _actor.IsEnabled() && !_actor.isDead() && !_actor.IsUnconscious()
 endFunction
 
 Function OnLocationChange()

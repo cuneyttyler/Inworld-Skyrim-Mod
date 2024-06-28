@@ -88,22 +88,21 @@ fastify.register(async function (fastify) {
     }, (connection, req) => {
         connection.socket.on('message', async (msg) => {
             let message = JSON.parse(msg.toString());
-            console.log("Message received", message);
+            if (message.type != 'log_event') {
+                console.log("Message received", message);
+            }
             if (message.type == "connect" && !message.is_n2n) {
-                let result = ClientManager.ConnectToCharacterViaSocket(message.id, process.env.PLAYER_NAME, connection.socket);
+                let result = await ClientManager.ConnectToCharacterViaSocket(message.id, process.env.PLAYER_NAME, connection.socket);
                 if (result) {
                     dialogueHistory.push({
                         talker: DialogParticipant.UNKNOWN,
                         phrase: 'In ' + message.location + ', on ' + message.currentDateTime + ', you started to talk with ' + process.env.PLAYER_NAME + '. '
                     });
-                    setTimeout(() => {
-                        ClientManager.SendNarratedAction('Please keep your answers. short.');
-                        let events = GetEvents(message.id);
-                        if (events && events != "") {
-                            console.log("Sending event log.");
-                            ClientManager.SendNarratedAction("This is what happened previously: " + events);
-                        }
-                    }, 2000);
+                    ClientManager.SendNarratedAction('Please keep your answers. short.');
+                    let events = GetEvents(message.id);
+                    if (events && events != "") {
+                        ClientManager.SendNarratedAction("This is what happened previously: " + events);
+                    }
                 }
             }
             else if (message.type == "start_listen" && !message.is_n2n) {
@@ -125,19 +124,19 @@ fastify.register(async function (fastify) {
                 dialogueHistory = [];
             }
             else if (message.type == "connect" && message.is_n2n) {
-                await ClientManager_DungeonMaster.ConnectToCharacterViaSocket(message.source, "DungeonMaster", connection.socket);
-                await ClientManager_N2N_Source.ConnectToCharacterViaSocket(message.target, message.source, connection.socket);
-                await ClientManager_N2N_Target.ConnectToCharacterViaSocket(message.source, message.target, connection.socket);
-                let sourceEvents = GetEvents(message.source);
-                if (sourceEvents && sourceEvents != "") {
-                    console.log("Sending source event log.");
-                    ClientManager_DungeonMaster.SendNarratedAction("This is what happened previously: " + sourceEvents);
-                    ClientManager_N2N_Target.SendNarratedAction("This is what happened previously: " + sourceEvents);
-                }
-                let targetEvents = GetEvents(message.target);
-                if (targetEvents && targetEvents != "") {
-                    console.log("Sending target event log.");
-                    ClientManager_N2N_Source.SendNarratedAction("This is what happened previously: " + targetEvents);
+                let result = await ClientManager_DungeonMaster.ConnectToCharacterViaSocket(message.source, "DungeonMaster", connection.socket);
+                result = result && await ClientManager_N2N_Source.ConnectToCharacterViaSocket(message.target, message.source, connection.socket);
+                result = result && await ClientManager_N2N_Target.ConnectToCharacterViaSocket(message.source, message.target, connection.socket);
+                if (result) {
+                    let sourceEvents = GetEvents(message.source);
+                    if (sourceEvents && sourceEvents != "") {
+                        ClientManager_DungeonMaster.SendNarratedAction("This is what happened previously: " + sourceEvents);
+                        ClientManager_N2N_Target.SendNarratedAction("This is what happened previously: " + sourceEvents);
+                    }
+                    let targetEvents = GetEvents(message.target);
+                    if (targetEvents && targetEvents != "") {
+                        ClientManager_N2N_Source.SendNarratedAction("This is what happened previously: " + targetEvents);
+                    }
                 }
             }
             else if (message.type == "start" && message.is_n2n) {
@@ -153,16 +152,14 @@ fastify.register(async function (fastify) {
             }
             else if (message.type == "log_event") {
                 SaveEventLog(message.id, message.message);
-                if (ClientManager.IsConversationOngoing()) {
-                    console.log("Sending SendNarratedAction: ");
-                    ClientManager.SendTrigger("player_event", { parameters: [{ name: "event", value: message.message }] });
-                }
-                if (dialogueManager.IsConversationOngoing()) {
-                    console.log("Sending narrated action N2N");
-                    ClientManager_DungeonMaster.SendNarratedAction(message.message);
-                    ClientManager_N2N_Target.SendNarratedAction(message.message);
-                    ClientManager_N2N_Source.SendNarratedAction(message.message);
-                }
+                // if(ClientManager.IsConversationOngoing()) {
+                //     ClientManager.SendNarratedAction(message.message);
+                // }
+                // if(dialogueManager.IsConversationOngoing()) {
+                //     ClientManager_DungeonMaster.SendNarratedAction(message.message);
+                //     ClientManager_N2N_Target.SendNarratedAction(message.message);
+                //     ClientManager_N2N_Source.SendNarratedAction(message.message);
+                // }
             }
         });
     });
@@ -238,7 +235,7 @@ function OverrideConsole() {
         logToLog(JSON.stringify(Array.prototype.slice.call(arguments)));
     };
 }
-function logToLog(message) {
+export function logToLog(message) {
     const timestamp = new Date().toISOString();
     const logMessage = `${timestamp} - ${message}`;
     const logFileName = "InworldClient.log";

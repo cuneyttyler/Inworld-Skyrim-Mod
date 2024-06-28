@@ -61,6 +61,7 @@ export default class InworldClientManager {
             }
             console.log("Requesting connecting to " + id);
             let scene = await this.workspaceManager.UpdateScene(!this.is_n2n ? 0 : this.speaker + 1, [id]);
+            // let scene = "workspaces/" + WORKSPACE_NAME + "/characters/" + id
             this.client.setUser({ fullName: playerName });
             this.client.setScene(scene);
             this.is_ending = false;
@@ -85,18 +86,18 @@ export default class InworldClientManager {
                 this.socketController.SetRecorder(this.blcRecorder);
             }
             this.characterName = id;
-            // console.log("Starting audio session...")
-            // await this.connection.sendAudioSessionStart();
+            let characters = await this.connection.getCharacters();
+            this.connection.setCurrentCharacter(characters[0]);
+            console.log("Starting audio session...");
+            this.connection.sendAudioSessionStart();
             let verifyConnection = GetSocketResponse("connection established", "1-1", "established", 0, this.is_n2n, this.speaker);
             console.log("Connection to " + id + " is succesfull" + JSON.stringify(verifyConnection));
             console.logToLog(`Connection to ${id} is succesfull.`);
             this.isAudioSessionStarted = true;
-            setTimeout(() => {
-                console.log("Sending verify connection, speaker: " + this.speaker);
-                socket.send(JSON.stringify(verifyConnection));
-                this.conversationOngoing = true;
-            }, 2000);
-            return 1;
+            console.log("Sending verify connection, speaker: " + this.speaker);
+            socket.send(JSON.stringify(verifyConnection));
+            this.conversationOngoing = true;
+            return true;
         }
         catch (err) {
             if (characterId.includes("GenericMale") || characterId.includes("GenericFemale")) {
@@ -104,20 +105,20 @@ export default class InworldClientManager {
                 console.error(err);
                 let returnDoesNotExist = GetSocketResponse("This soul lacks the divine blessing of conversational endowment bestowed by the gods.", "1-1", "doesntexist", 0, this.is_n2n, this.speaker);
                 socket.send(JSON.stringify(returnDoesNotExist));
-                return 0;
+                return false;
             }
+            console.log(characterId + ' is a generic NPC. Connecting to generic NPC.');
             let character = this.workspaceManager.GetGenericCharacter(characterId.toLowerCase());
             if (character == null) {
-                console.error("ERROR during connecting " + playerName + " -> " + characterId);
+                console.error("ERROR during connecting " + playerName + " -> " + characterId + ". Generic NPC doesn't exist.");
                 console.error(err);
                 let returnDoesNotExist = GetSocketResponse("This soul lacks the divine blessing of conversational endowment bestowed by the gods.", "1-1", "doesntexist", 0, this.is_n2n, this.speaker);
                 socket.send(JSON.stringify(returnDoesNotExist));
-                return 0;
+                return false;
             }
-            console.log(character.name + ' is a generic NPC. Connecting to generic NPC.');
             if (!character.genericIndex) {
                 console.error("Generic character index could not be found for " + character.name);
-                return 0;
+                return false;
             }
             let genericCharacterId = null;
             if (character.defaultCharacterAssets.voice.gender == 'VOICE_GENDER_MALE') {
@@ -128,12 +129,12 @@ export default class InworldClientManager {
             }
             else {
                 console.error("Character gender could not be found.");
-                return 0;
+                return false;
             }
             this.genericCharacterId = characterId.toLowerCase();
             this.prompt = "This is your character information, speak accordingly:" + JSON.stringify(character);
             await this.ConnectToCharacterViaSocket(genericCharacterId, playerName, socket);
-            return 2;
+            return true;
         }
     }
     Init(initMessage) {

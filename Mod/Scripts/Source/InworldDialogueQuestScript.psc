@@ -9,14 +9,13 @@ referencealias property target_n2n auto
 package property InworldTravelToNpcLocationPackage auto
 package property InworldStandPackage auto
 package property InworldN2NStandPackage auto
-formlist property DefaultNPCVoiceTypes auto
+formlist property _InworldVoiceTypes auto
+GlobalVariable property ConversationOnGoing auto
 GlobalVariable property N2N_ConversationOnGoing auto
 GlobalVariable property N2N_LastSuccessfulStart auto
 faction property CurrentFollowerFaction auto
 faction property PotentialFollowerFaction auto
 ; quest property InworldDialogueQuest auto
-
-bool dialogueOngoing = False
 
 function OnInit()
     
@@ -84,14 +83,14 @@ function _Start(String eventName, String strArg, Float numArg, Form sender)
         debug.Trace("Inworld: Actor is currently engaged in converation with another NPC.")
     EndIf
     debug.Trace("Inworld: Start Dialogue")
-    dialogueOngoing = True
+    ConversationOnGoing.SetValueInt(1)
     InworldSKSE.Start(sender as Actor, Utility.GameTimeToString(Utility.GetCurrentGameTime()))
 endFunction
 
 function _Stop(String eventName, String strArg, Float numArg, Form sender) 
     debug.Trace("Inworld: Stop Dialogue")
     Utility.Wait(7)
-    dialogueOngoing = False
+    ConversationOnGoing.SetValueInt(0)
     target.Clear()
 endFunction
 
@@ -148,5 +147,5 @@ function Speak_N2N(String eventName, String strArg, Float numArg, Form sender)
 endFunction
 
 bool function IsAvailableForDialogue(Actor _actor)
-    return DefaultNPCVoiceTypes.HasForm(_actor.GetVoiceType()) && !_actor.IsAlerted() && !_actor.IsAlarmed()  && !_actor.IsBleedingOut() && !_actor.isDead() && !_actor.IsUnconscious()
+    return _InworldVoiceTypes.HasForm(_actor.GetVoiceType())  && _actor.IsEnabled()&& !_actor.IsAlerted() && !_actor.IsAlarmed()  && !_actor.IsBleedingOut() && !_actor.isDead() && !_actor.IsUnconscious()
 endFunction

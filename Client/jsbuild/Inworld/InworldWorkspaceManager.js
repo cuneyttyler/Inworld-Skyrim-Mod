@@ -26,16 +26,18 @@ export default class InworldWorkspaceManager {
     async SetupWorkplace() {
         await this.SetupCommonKnowledge();
         await this.PopulateCharacters();
-        if (process.env.UPDATE == 'true') {
-            let createdCharacters = await this.CreateMissingCharacters();
-            await this.DeployCharacters(createdCharacters);
-        }
+        await this.UpdateDatabase();
+    }
+    async UpdateDatabase() {
+        let createdCharacters = await this.CreateMissingCharacters();
+        await this.DeployCharacters(createdCharacters);
     }
     async UpdateScene(type, ids, append = false) {
         let headers = await this.GetHeader();
         let response = await axios.get(SCENE_URI, { headers: headers });
         let scenes = response.data.scenes;
         if (scenes.length == 0) {
+            console.error("No scenes found in database.");
             return;
         }
         let sceneId = "";
@@ -69,7 +71,6 @@ export default class InworldWorkspaceManager {
             }
             characters.push({ "character": c.name, "displayTitle": c.defaultCharacterDescription.givenName, "imageUri": "", "additionalAgentInfo": "" });
         }
-        console.log("Updating " + sceneId + " with " + JSON.stringify(characters));
         scene.characters = characters;
         await axios.patch("https://studio.inworld.ai/studio/v1/" + sceneId, JSON.stringify(scene), { headers: headers });
         await axios.post("https://studio.inworld.ai/studio/v1/" + sceneId + ":deploy", null, { headers: headers });
@@ -104,8 +105,10 @@ export default class InworldWorkspaceManager {
                 await this.CreateCharacter(data.name, data);
             }
             else {
-                console.log(`${data.defaultCharacterDescription.givenName} exists, not updating.`);
-                console.logToLog(`${data.defaultCharacterDescription.givenName} exists, not updating.`);
+                // console.log(`${
+                //     data.defaultCharacterDescription.givenName
+                // } exists, not updating.`);
+                // (console as any).logToLog(`${data.defaultCharacterDescription.givenName} exists, not updating.`)
             }
         }
         return createdCharacters;
@@ -135,6 +138,9 @@ export default class InworldWorkspaceManager {
         console.log(this.characterList.length + " characters loaded.");
     }
     async DeployCharacters(createdCharacters) {
+        if (createdCharacters.length == 0) {
+            return;
+        }
         console.log("Deploying " + createdCharacters.length + " characters.");
         for (let i in createdCharacters) {
             let percentage = (i * 100 / createdCharacters.length);
@@ -264,7 +270,7 @@ export default class InworldWorkspaceManager {
     GetGenericCharacter(name) {
         let character = null;
         for (let i in GENERIC_CHARACTERS.characters) {
-            if (name == GENERIC_CHARACTERS.characters[i].name.replace("workspaces/{WORKSPACE}/characters/", "")) {
+            if (name.toLowerCase().replace(" ", "_") == GENERIC_CHARACTERS.characters[i].name.replace("workspaces/{WORKSPACE}/characters/", "")) {
                 character = GENERIC_CHARACTERS.characters[i];
                 break;
             }

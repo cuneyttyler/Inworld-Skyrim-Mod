@@ -1,5 +1,6 @@
 import { AudioData, AudioProcessor } from './Audio/AudioProcessor.js';
 import EventBus from '../EventBus.js';
+import { logToLog } from '../SkyrimClient.js';
 export function GetSocketResponse(message, phoneme, type, duration, is_n2n, speaker) {
     return { "message": message, "phoneme": phoneme, "type": type, "duration": duration, "is_n2n": is_n2n, "speaker": speaker };
 }
@@ -79,6 +80,8 @@ export class SkyrimInworldSocketController {
             ++this.stepCount;
             setTimeout(() => {
                 let response = this.Responses.join(' ');
+                console.log(`Character said: ${response}`);
+                logToLog(`Character said: ${response}`);
                 if (!is_n2n) {
                     EventBus.GetSingleton().emit('TARGET_RESPONSE', response);
                     if (response == this.FollowAcceptResponse) {
