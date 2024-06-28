@@ -1,0 +1,22 @@
+﻿  PhonemeUtility.cpp
+D:\Dev\Inworld-Skyrim-Mod\SKSE\PhonemeUtility.cpp(8,20): warning C4566: character represented by universal-character-name '\u0259' cannot be represented in the current code page (1254)
+D:\Dev\Inworld-Skyrim-Mod\SKSE\PhonemeUtility.cpp(8,32): warning C4566: character represented by universal-character-name '\u025A' cannot be represented in the current code page (1254)
+D:\Dev\Inworld-Skyrim-Mod\SKSE\PhonemeUtility.cpp(9,10): warning C4566: character represented by universal-character-name '\u026A' cannot be represented in the current code page (1254)
+D:\Dev\Inworld-Skyrim-Mod\SKSE\PhonemeUtility.cpp(9,23): warning C4566: character represented by universal-character-name '\u028A' cannot be represented in the current code page (1254)
+D:\Dev\Inworld-Skyrim-Mod\SKSE\PhonemeUtility.cpp(11,20): warning C4566: character represented by universal-character-name '\u0283' cannot be represented in the current code page (1254)
+D:\Dev\Inworld-Skyrim-Mod\SKSE\PhonemeUtility.cpp(12,21): warning C4566: character represented by universal-character-name '\u00F0' cannot be represented in the current code page (1254)
+D:\Dev\Inworld-Skyrim-Mod\SKSE\PhonemeUtility.cpp(14,10): warning C4566: character represented by universal-character-name '\u025B' cannot be represented in the current code page (1254)
+D:\Dev\Inworld-Skyrim-Mod\SKSE\PhonemeUtility.cpp(14,22): warning C4566: character represented by universal-character-name '\u0250' cannot be represented in the current code page (1254)
+D:\Dev\Inworld-Skyrim-Mod\SKSE\PhonemeUtility.cpp(14,34): warning C4566: character represented by universal-character-name '\u028C' cannot be represented in the current code page (1254)
+D:\Dev\Inworld-Skyrim-Mod\SKSE\PhonemeUtility.cpp(16,10): warning C4566: character represented by universal-character-name '\u026A' cannot be represented in the current code page (1254)
+D:\Dev\Inworld-Skyrim-Mod\SKSE\PhonemeUtility.cpp(19,21): warning C4566: character represented by universal-character-name '\u0254' cannot be represented in the current code page (1254)
+D:\Dev\Inworld-Skyrim-Mod\SKSE\PhonemeUtility.cpp(20,21): warning C4566: character represented by universal-character-name '\u028A' cannot be represented in the current code page (1254)
+D:\Dev\Inworld-Skyrim-Mod\SKSE\PhonemeUtility.cpp(21,10): warning C4566: character represented by universal-character-name '\u0279' cannot be represented in the current code page (1254)
+D:\Dev\Inworld-Skyrim-Mod\SKSE\PhonemeUtility.cpp(22,10): warning C4566: character represented by universal-character-name '\u03B8' cannot be represented in the current code page (1254)
+D:\Dev\Inworld-Skyrim-Mod\SKSE\PhonemeUtility.cpp(22,22): warning C4566: character represented by universal-character-name '\u0292' cannot be represented in the current code page (1254)
+D:\Dev\Inworld-Skyrim-Mod\SKSE\PhonemeUtility.cpp(39,15): warning C4244: 'argument': conversion from 'time_t' to 'unsigned int', possible loss of data
+  plugin.cpp
+D:\Dev\Inworld-Skyrim-Mod\SKSE\plugin.cpp(1,10): error C1083: Cannot open include file: 'cpr/cpr.h': No such file or directory
+  SocketManager.cpp
+D:\Dev\Inworld-Skyrim-Mod\SKSE\SocketManager.cpp(1,10): error C1083: Cannot open include file: 'nlohmann/json.hpp': No such file or directory
+  Generating Code...

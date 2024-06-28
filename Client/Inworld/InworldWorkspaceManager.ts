@@ -278,7 +278,7 @@ export default class InworldWorkspaceManager {
                 name = "guard";
             for (let i = 0; i < this.characterList.length; i++) {
                 let character = this.characterList[i];
-                let nameNormalized = character.name.toLowerCase().replace("_", " ");
+                let nameNormalized = character.name.toLowerCase().replaceAll("_", " ");
                 if (nameNormalized.includes(name.toLowerCase()) || character.defaultCharacterDescription.givenName.toLowerCase().includes(name.toLowerCase())) {
                     let name = character.name;
                     let id = name.replace("workspaces/" + WORKSPACE_NAME + "/characters/", "")
@@ -294,7 +294,7 @@ export default class InworldWorkspaceManager {
     GetGenericCharacter(name) {
         let character = null;
         for(let i in (GENERIC_CHARACTERS as any).characters) {
-            if(name.toLowerCase().replace(" ", "_") == (GENERIC_CHARACTERS as any).characters[i].name.replace("workspaces/{WORKSPACE}/characters/", "")) {
+            if(name.toLowerCase().replaceAll(" ", "_") == (GENERIC_CHARACTERS as any).characters[i].name.replace("workspaces/{WORKSPACE}/characters/", "")) {
                 character = (GENERIC_CHARACTERS as any).characters[i];
                 break
             }

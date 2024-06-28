@@ -10,6 +10,7 @@
 #include <future>
 #include <thread>
 #include <chrono>
+#include <boost/shared_ptr.hpp>
 
 #include "PhonemeUtility.cpp"
 
@@ -71,6 +72,7 @@ public:
     inline static RE::Actor* conversationPair;
     inline static bool connecting = false;
     inline static bool conversationOngoing = false;
+    inline static bool stopSignal = false;
     inline static int n2n_established_response_count = 0;
     inline static RE::Actor* N2N_SourceActor;
     inline static RE::Actor* N2N_TargetActor;
@@ -144,6 +146,7 @@ public:
     static void Stop() {
         SKSE::ModCallbackEvent modEvent{"BLC_Stop", "", 1.0f, nullptr};
         SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
+        InworldCaller::stopSignal = false;
         InworldCaller::conversationOngoing = false;
         InworldCaller::conversationPair = nullptr;
         InworldCaller::conversationActor = nullptr;
@@ -171,6 +174,7 @@ public:
         InworldCaller::conversationPair = conversationActor;
         InworldCaller::conversationOngoing = true;
         InworldCaller::connecting = false;
+        InworldCaller::stopSignal = false;
         SetHoldPosition(0, conversationActor);
     }
 
@@ -178,10 +182,9 @@ public:
         SKSE::ModCallbackEvent modEvent{"BLC_Speak", "", 0.0075f, InworldCaller::conversationActor};
         SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
         SubtitleManager::ShowSubtitle(message, duration);
-        if (!InworldCaller::conversationOngoing) {
+        if (InworldCaller::stopSignal || !InworldCaller::conversationOngoing) {
             SetHoldPosition(1, InworldCaller::conversationActor);
-            InworldCaller::conversationPair = nullptr;
-            InworldCaller::conversationActor = nullptr;
+            InworldCaller::Stop();
         }
     }
 
@@ -200,7 +203,8 @@ public:
 #include "SocketManager.cpp"
 
 
-class InworldEventSink : public RE::BSTEventSink<SKSE::CrosshairRefEvent>, public RE::BSTEventSink<RE::InputEvent*> {
+class InworldEventSink : public RE::BSTEventSink<SKSE::CrosshairRefEvent>,
+                         public RE::BSTEventSink<RE::InputEvent*> {
     InworldEventSink() = default;
     InworldEventSink(const InworldEventSink&) = delete;
     InworldEventSink(InworldEventSink&&) = delete;
@@ -240,7 +244,7 @@ class OpenTextboxCallback : public RE::BSScript::IStackCallbackFunctor {
                 if (to_lower(playerMessage).find(std::string("goodbye")) != std::string::npos) {
                     SocketManager::getInstance().SendStopSignal(InworldEventSink::GetSingleton()->conversationPair);
                     InworldEventSink::GetSingleton()->conversationPair = nullptr;
-                    InworldCaller::Stop();
+                    InworldCaller::stopSignal = true;
                 }
             }
             callback_();
@@ -369,7 +373,7 @@ public:
                     }
                     // U key
                 } else if (dxScanCode == 22) {
-                    if (buttonEvent->IsDown() && conversationPair != nullptr && !InworldCaller::conversationOngoing && !InworldCaller::connecting) {
+                    if (buttonEvent->IsDown() && conversationPair != nullptr && !InworldCaller::stopSignal && !InworldCaller::conversationOngoing && !InworldCaller::connecting) {
                         InworldCaller::connecting = true;
                         InworldCaller::Start(conversationPair);
                     } else if (buttonEvent->IsDown() && InworldCaller::conversationOngoing) {
@@ -399,7 +403,6 @@ public:
         if (!target) {
             return false;
         }
-        
         SocketManager::getInstance().connectTo(target, currentDateTime);
 
         return true;
