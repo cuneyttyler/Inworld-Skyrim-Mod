@@ -14,21 +14,44 @@ using websocketpp::lib::bind;
 using websocketpp::lib::placeholders::_1;
 using websocketpp::lib::placeholders::_2;
 
+static class Util {
+public:
+    static const char* GetActorName(RE::Actor* actor) {
+        if (auto xTextData = actor->extraList.GetByType<RE::ExtraTextDisplayData>(); xTextData) {
+            return actor->GetDisplayFullName();
+        }
+
+        if (auto actorBase = actor->GetActorBase(); actorBase) {
+            if (actorBase->shortName.size() > 0) {
+                return actorBase->shortName.c_str();
+            }
+        }
+
+        return actor->GetName();
+    }
+};
 
 class Message {
 public:
-    Message(const string& type, const string& message, const string& id,
+    Message(const string& type, const string& message, const string& id, const string& playerName = "",
             const string& location = "",
-            const string& currentDateTime = "")
-        : type(type), message(message), id(id), location(location), currentDateTime(currentDateTime) {}
+            const string& currentDateTime = "", const bool stop = false)
+        : type(type),
+          message(message),
+          id(id),
+          playerName(playerName),
+          location(location),
+          currentDateTime(currentDateTime), stop(stop) {}
 
     json toJson() const {
         return {{"type", type},
                 {"message", message},
                 {"id", id},
+                {"playerName", playerName},
                 {"is_n2n", false},
                 {"location", location},
-                {"currentDateTime", currentDateTime}
+                {"currentDateTime", currentDateTime},
+                {"stop", stop}
         };
     }
 
@@ -36,8 +59,10 @@ private:
     string type;
     string message;
     string id;
+    string playerName;
     string location;
     string currentDateTime;
+    bool stop;
 };
 
 class N2NMessage {
@@ -142,15 +167,21 @@ public:
 
     void send_message(Message* message) {
         // Send a JSON message to the server
-        json messageJson = message->toJson();
-        std::string message_str = messageJson.dump();
-        c.send(con->get_handle(), message_str, websocketpp::frame::opcode::text);
+        try {
+            json messageJson = message->toJson();
+            std::string message_str = messageJson.dump();
+            c.send(con->get_handle(), message_str, websocketpp::frame::opcode::text);
+        } catch (...) {
+        }
     }
 
     void send_message_n2n(N2NMessage* message) {
-        json messageJson = message->toJson();
-        std::string message_str = messageJson.dump();
-        c.send(con->get_handle(), message_str, websocketpp::frame::opcode::text);
+        try {
+            json messageJson = message->toJson();
+            std::string message_str = messageJson.dump();
+            c.send(con->get_handle(), message_str, websocketpp::frame::opcode::text);
+        } catch (...) {
+        }
     }
 
     static void on_message(client* c, websocketpp::connection_hdl hdl, message_ptr msg) {
@@ -184,7 +215,6 @@ public:
             } else if (type == "doesntexist" && !is_n2n) {
                 InworldCaller::ShowReplyMessage(message);
                 InworldCaller::conversationActor = nullptr;
-                InworldCaller::conversationPair = nullptr;
                 InworldCaller::connecting = false;
             } else if (type == "doesntexist" && is_n2n) {
                 InworldCaller::ShowReplyMessage(message);
@@ -217,16 +247,17 @@ public:
         soc = new InworldSocketController();
     }
 
-    void sendMessage(std::string message, RE::Actor* conversationActor) {
+    void sendMessage(std::string message, RE::Actor* conversationActor, bool stop) {
         auto id = conversationActor->GetName();
+        auto playerName = RE::PlayerCharacter::GetSingleton()->GetName();
 
         if (lastConnected != id) {
             lastConnected = id;
-            Message* messageObj = new Message("connect", "connect request..", id, "");
+            Message* messageObj = new Message("connect", "connect request..", id, playerName, "", "", stop);
             soc->send_message(messageObj);
         }
 
-        Message* messageObj = new Message("message", message, id, "");
+        Message* messageObj = new Message("message", message, id, playerName, "", "", stop);
         soc->send_message(messageObj);
     }
 
@@ -239,11 +270,14 @@ public:
     }
 
     void SendLogEvent(RE::Actor* actor, string log) { 
-        ValidateSocket();
-        auto id = actor->GetName();
-        if (id == nullptr || id == "") return;
-        Message* message = new Message("log_event", log, id);
-        soc->send_message(message);
+        try {
+            ValidateSocket();
+            auto id = Util::GetActorName(actor);
+            if (id == nullptr || id == "") return;
+            Message* message = new Message("log_event", log, id);
+            soc->send_message(message);
+        } catch (...) {
+        }
     }
 
     void SendN2NStartSignal(RE::Actor* source, RE::Actor* target, string currentDateTime) {
@@ -286,10 +320,11 @@ public:
         ValidateSocket();
         auto id = conversationActor->GetName();
         auto location = conversationActor->GetCurrentLocation()->GetName();
+        auto playerName = RE::PlayerCharacter::GetSingleton()->GetName();
         if (id == nullptr || id == "") return;
         InworldCaller::conversationActor = conversationActor;
         lastConnected = id;
-        Message* message = new Message("connect", "connect request..", id, location, currentDateTime);
+        Message* message = new Message("connect", "connect request..", id, playerName, location, currentDateTime);
         soc->send_message(message);
     }
 

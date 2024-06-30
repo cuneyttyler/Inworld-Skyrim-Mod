@@ -77,7 +77,6 @@ export class AudioProcessor extends EventEmitter {
         if (audioData) {
             try {
                 await this.processAudioStream(audioData);
-                this.emit('processNext');
             } catch (error) {
                 console.error('Error processing audio stream:', error);
             }
@@ -94,6 +93,7 @@ export class AudioProcessor extends EventEmitter {
                 data.callback(duration);
                 waitSync(duration);
                 this.processing = false;
+                this.emit('processNext');
             } catch(e) {
                 console.error("ERROR: " + e);
             }
@@ -121,7 +121,7 @@ export class AudioProcessor extends EventEmitter {
 
         for(var i = 0; i < VoiceTypes.length; i++) {
             var voiceType = VoiceTypes[i];
-            var outputFolder = process.env.MODS_FOLDER + "\\InworldSkyrim\\Sound\\Voice\\InworldUIHelper.esp\\" + voiceType + "\\";
+            var outputFolder = process.env.SKYRIM_MODS_FOLDER + "\\InworldSkyrim\\Sound\\Voice\\InworldUIHelper.esp\\" + voiceType + "\\";
 
             if (!fs.existsSync(outputFolder)) {
               // Folder does not exist, so create it
@@ -153,7 +153,7 @@ export class AudioProcessor extends EventEmitter {
         for(var j = 0; j < VoiceTypes.length; j++) {
             voiceType = VoiceTypes[j];
 
-            const outputFolder = process.env.MODS_FOLDER + "\\InworldSkyrim\\Sound\\Voice\\InworldUIHelper.esp\\" + voiceType + "\\";
+            const outputFolder = process.env.SKYRIM_MODS_FOLDER + "\\InworldSkyrim\\Sound\\Voice\\InworldUIHelper.esp\\" + voiceType + "\\";
             const audioFile = outputFolder + voiceFileName + ".wav";
             const lipFile = outputFolder + voiceFileName + ".lip";
 
@@ -166,7 +166,7 @@ export class AudioProcessor extends EventEmitter {
         fs.unlinkSync('./Audio/Temp/' + voiceFileName + '_' + stepCount + '.wav');
         fs.unlinkSync('./Audio/Temp/' + voiceFileName + '_' + stepCount + '.lip');
         
-        outputFolder = process.env.MODS_FOLDER + "\\InworldSkyrim\\Sound\\Voice\\InworldUIHelper.esp\\" + VoiceTypes[0] + "\\";
+        outputFolder = process.env.SKYRIM_MODS_FOLDER + "\\InworldSkyrim\\Sound\\Voice\\InworldUIHelper.esp\\" + VoiceTypes[0] + "\\";
         const audioFile = outputFolder + voiceFileName + ".wav";
         
         return duration;

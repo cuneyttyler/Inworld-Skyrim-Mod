@@ -18,7 +18,6 @@ faction property PotentialFollowerFaction auto
 ; quest property InworldDialogueQuest auto
 
 function OnInit()
-    
     self.RegisterForModEvent("BLC_Start", "_Start")
     self.RegisterForModEvent("BLC_Stop", "_Stop")
 	self.RegisterForModEvent("BLC_Speak", "Speak")
@@ -81,25 +80,19 @@ endFunction
 function _Start(String eventName, String strArg, Float numArg, Form sender) 
     If (sender as Actor) == None || (sender as Actor) == source_n2n.GetActorRef() || (sender as Actor) == target_n2n.GetActorRef()
         debug.Trace("Inworld: Actor is currently engaged in converation with another NPC.")
+        return;
     EndIf
     debug.Trace("Inworld: Start Dialogue")
     ConversationOnGoing.SetValueInt(1)
+    target.ForceRefTo(sender as Actor)
+    SetHoldPosition("", "", 0, sender)
     InworldSKSE.Start(sender as Actor, Utility.GameTimeToString(Utility.GetCurrentGameTime()))
 endFunction
 
 function _Stop(String eventName, String strArg, Float numArg, Form sender) 
     debug.Trace("Inworld: Stop Dialogue")
-    Utility.Wait(7)
     ConversationOnGoing.SetValueInt(0)
     target.Clear()
-endFunction
-
-function Add_To_Followers(String eventName, String strArg, Float numArg, Form sender)
-    Actor _actor = sender as Actor
-
-    _actor.AddtoFaction(CurrentFollowerFaction)
-    _actor.AddToFaction(PotentialFollowerFaction)
-    ; TO-DO
 endFunction
 
 function Speak(String eventName, String strArg, Float numArg, Form sender) 
@@ -107,8 +100,6 @@ function Speak(String eventName, String strArg, Float numArg, Form sender)
         Return
     EndIf
     debug.Trace("Inworld: Speak request for " + (sender as Actor).GetDisplayName())
-    target.ForceRefTo(sender as Actor)
-    Utility.Wait(0.25)
     target.GetActorRef().Say(target_topic)
     debug.Trace("Inworld: " + target.GetActorRef().GetDisplayName() + " speaked.")
 endFunction
@@ -146,6 +137,14 @@ function Speak_N2N(String eventName, String strArg, Float numArg, Form sender)
     EndIf
 endFunction
 
+function Add_To_Followers(String eventName, String strArg, Float numArg, Form sender)
+    Actor _actor = sender as Actor
+
+    _actor.AddtoFaction(CurrentFollowerFaction)
+    _actor.AddToFaction(PotentialFollowerFaction)
+    ; TO-DO
+endFunction
+
 bool function IsAvailableForDialogue(Actor _actor)
-    return _InworldVoiceTypes.HasForm(_actor.GetVoiceType())  && _actor.IsEnabled()&& !_actor.IsAlerted() && !_actor.IsAlarmed()  && !_actor.IsBleedingOut() && !_actor.isDead() && !_actor.IsUnconscious()
+    return ((_InworldVoiceTypes.GetAt(0) as FormList).HasForm(_actor.GetVoiceType()) || (_InworldVoiceTypes.GetAt(1) as FormList).HasForm(_actor.GetVoiceType()))  && _actor.IsEnabled()&& !_actor.IsAlerted() && !_actor.IsAlarmed()  && !_actor.IsBleedingOut() && !_actor.isDead() && !_actor.IsUnconscious()
 endFunction

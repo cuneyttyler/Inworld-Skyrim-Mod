@@ -27,12 +27,17 @@ ClientManager_N2N_Target.SetWorkspaceManager(ClientManager.GetWorkspaceManager()
 ClientManager_DungeonMaster.SetWorkspaceManager(ClientManager.GetWorkspaceManager());
 var dialogueManager = new DialogueManager(N2N_MAX_STEP_COUNT, ClientManager_DungeonMaster, ClientManager_N2N_Source, ClientManager_N2N_Target);
 ;
+var id;
 var dialogueHistory = [];
 EventBus.GetSingleton().on('TARGET_RESPONSE', (msg) => {
     dialogueHistory.push({
         talker: DialogParticipant.CHARACTER,
         phrase: msg
     });
+});
+EventBus.GetSingleton().on('END', (msg) => {
+    ClientManager.SaveDialogueHistory(id, dialogueHistory);
+    ClientManager.CleanupScene();
 });
 function GetEventFile(id) {
     try {
@@ -92,8 +97,9 @@ fastify.register(async function (fastify) {
                 console.log("Message received", message);
             }
             if (message.type == "connect" && !message.is_n2n) {
-                let result = await ClientManager.ConnectToCharacterViaSocket(message.id, process.env.PLAYER_NAME, connection.socket);
+                let result = await ClientManager.ConnectToCharacterViaSocket(message.id, message.playerName, connection.socket);
                 if (result) {
+                    id = message.id;
                     dialogueHistory.push({
                         talker: DialogParticipant.UNKNOWN,
                         phrase: 'In ' + message.location + ', on ' + message.currentDateTime + ', you started to talk with ' + process.env.PLAYER_NAME + '. '
@@ -101,7 +107,7 @@ fastify.register(async function (fastify) {
                     ClientManager.SendNarratedAction('Please keep your answers. short.');
                     let events = GetEvents(message.id);
                     if (events && events != "") {
-                        ClientManager.SendNarratedAction("This is what happened previously: " + events);
+                        ClientManager.SendNarratedAction(events);
                     }
                 }
             }
@@ -112,6 +118,9 @@ fastify.register(async function (fastify) {
                 ClientManager.StopTalking();
             }
             else if (message.type == "message" && !message.is_n2n) {
+                if (message.stop) {
+                    ClientManager.Stop();
+                }
                 ClientManager.Say(message.message);
                 dialogueHistory.push({
                     talker: DialogParticipant.PLAYER,
@@ -130,12 +139,12 @@ fastify.register(async function (fastify) {
                 if (result) {
                     let sourceEvents = GetEvents(message.source);
                     if (sourceEvents && sourceEvents != "") {
-                        ClientManager_DungeonMaster.SendNarratedAction("This is what happened previously: " + sourceEvents);
-                        ClientManager_N2N_Target.SendNarratedAction("This is what happened previously: " + sourceEvents);
+                        ClientManager_DungeonMaster.SendNarratedAction(sourceEvents);
+                        ClientManager_N2N_Target.SendNarratedAction(sourceEvents);
                     }
                     let targetEvents = GetEvents(message.target);
                     if (targetEvents && targetEvents != "") {
-                        ClientManager_N2N_Source.SendNarratedAction("This is what happened previously: " + targetEvents);
+                        ClientManager_N2N_Source.SendNarratedAction(targetEvents);
                     }
                 }
             }
@@ -151,15 +160,15 @@ fastify.register(async function (fastify) {
                 }
             }
             else if (message.type == "log_event") {
-                SaveEventLog(message.id, message.message);
-                // if(ClientManager.IsConversationOngoing()) {
-                //     ClientManager.SendNarratedAction(message.message);
-                // }
-                // if(dialogueManager.IsConversationOngoing()) {
-                //     ClientManager_DungeonMaster.SendNarratedAction(message.message);
-                //     ClientManager_N2N_Target.SendNarratedAction(message.message);
-                //     ClientManager_N2N_Source.SendNarratedAction(message.message);
-                // }
+                SaveEventLog(message.id, message.message + " ");
+                if (ClientManager.IsConversationOngoing()) {
+                    ClientManager.SendNarratedAction(message.message + " ");
+                }
+                if (dialogueManager.IsConversationOngoing()) {
+                    ClientManager_DungeonMaster.SendNarratedAction(message.message + " ");
+                    ClientManager_N2N_Target.SendNarratedAction(message.message + " ");
+                    ClientManager_N2N_Source.SendNarratedAction(message.message + " ");
+                }
             }
         });
     });
@@ -257,4 +266,20 @@ export function logToErrorLog(message) {
         fs.writeFileSync(logFileName, logMessage + '\n', 'utf8');
     }
 }
+// setTimeout(async () => {
+//     console.log("Connecting...")
+//     let result = await ClientManager.ConnectToCharacterViaSocket("Faendal","Uriel", null)
+//     if(result) {
+//         console.log("Successful")
+//         // ClientManager.SendNarratedAction("Hilde said \"These travellers are passing by too often these days\"")
+//         ClientManager.SendNarratedAction("Alvor said \"I heard tales of a great bow called SkyRaver.\"")
+//         ClientManager.Say("What's he talking about?")
+//         // let events = GetEvents("Faendal")
+//         // if(events && events != "") {
+//         //     console.log("Sending events.")
+//         //     ClientManager.SendNarratedAction(events);
+//         // }
+//         // ClientManager.Say("So you say... Love is complicated. What's the name of that girl again?")
+//     }
+// }, 5000);
 //# sourceMappingURL=SkyrimClient.js.map

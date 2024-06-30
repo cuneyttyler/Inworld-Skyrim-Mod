@@ -11,11 +11,14 @@
 #include <thread>
 #include <chrono>
 #include <boost/shared_ptr.hpp>
+#include <algorithm>
 
 #include "PhonemeUtility.cpp"
 
 using namespace RE::BSScript;
 using json = nlohmann::json;
+
+void Log(std::string log) { RE::ConsoleLog::GetSingleton()->Print(log.c_str()); }
 
 static class InworldUtility {
 public:
@@ -43,13 +46,18 @@ string to_lower(string s) {
 
 static class SubtitleManager {
 public:
-    static void ShowSubtitle(std::string subtitle, float duration) {
+    static void ShowSubtitle(string actorName, string subtitle, float duration) {
+        HideSubtitle();
 
         auto hudMenu = RE::UI::GetSingleton()->GetMenu<RE::HUDMenu>(RE::HUDMenu::MENU_NAME);
         auto root = hudMenu->GetRuntimeData().root;
+        auto iniSettings = RE::INISettingCollection::GetSingleton();
+        uint32_t speakerNameColor = iniSettings->GetSetting("iSubtitleSpeakerNameColor:Interface")->GetUInt();
 
-        std::this_thread::sleep_for(1s);
+        std::this_thread::sleep_for(0.25s);
 
+        subtitle = std::format("<font color='#{:06X}'>{}</font>: {}", speakerNameColor, actorName, subtitle.c_str());
+        Log("Show subtitle: " + subtitle);
         if (subtitle.length() > 0) {
             RE::GFxValue asStr(subtitle.c_str());
             root.Invoke("ShowSubtitle", nullptr, &asStr, 1);
@@ -61,7 +69,6 @@ public:
     static void HideSubtitle() {
         auto hudMenu = RE::UI::GetSingleton()->GetMenu<RE::HUDMenu>(RE::HUDMenu::MENU_NAME);
         auto root = hudMenu->GetRuntimeData().root;
-        
         root.Invoke("HideSubtitle", nullptr, nullptr, 0);
     }
 };
@@ -69,27 +76,14 @@ public:
 static class InworldCaller {
 public:
     inline static RE::Actor* conversationActor;
-    inline static RE::Actor* conversationPair;
-    inline static bool connecting = false;
     inline static bool conversationOngoing = false;
     inline static bool stopSignal = false;
+    inline static bool connecting = false;
     inline static int n2n_established_response_count = 0;
     inline static RE::Actor* N2N_SourceActor;
     inline static RE::Actor* N2N_TargetActor;
-
-    static void MoveToPlayerWithMargin(RE::Actor* conversationActor) {
-        SKSE::ModCallbackEvent modEvent{"BLC_SetActorMoveToPlayer", 0, 0.0f, conversationActor};
-        SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
-    }
-
-    static void MakeFacialAnimations(RE::Actor* conversationActor, std::string str) {
-        if (str == "") return;  //
-        auto splitted = PhonemeUtility::get_instance()->string_to_phonemes(str);
-        // SKSE::ModCallbackEvent modEventClear{"BLC_ClearFacialExpressionEvent", "", 1.0f, conversationActor};
-        // SKSE::GetModCallbackEventSource()->SendEvent(&modEventClear);
-        SKSE::ModCallbackEvent modEvent{"BLC_SetFacialExpressionEvent", splitted, 0.0075f, conversationActor};
-        SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
-    }
+    inline static std::mutex sourceMutex;
+    inline static std::mutex targetMutex;
 
     static std::string DisplayMessage(std::string str, int fontSize, int width) {
         std::stringstream ss(str);
@@ -138,22 +132,24 @@ public:
     }
 
     static void Start(RE::Actor* actor) {
+        Log("SendCallback " + string(actor->GetName()));
         SKSE::ModCallbackEvent modEvent{"BLC_Start", "", 1.0f, actor};
         SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
-        InworldCaller::conversationPair = nullptr;
+        InworldCaller::conversationActor = actor;
+        InworldCaller::connecting = true;
     }
 
     static void Stop() {
         SKSE::ModCallbackEvent modEvent{"BLC_Stop", "", 1.0f, nullptr};
         SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
+        SetHoldPosition(1, InworldCaller::conversationActor);
         InworldCaller::stopSignal = false;
         InworldCaller::conversationOngoing = false;
-        InworldCaller::conversationPair = nullptr;
         InworldCaller::conversationActor = nullptr;
     }
 
     static void SendFollowRequestAcceptedSignal() {
-        SKSE::ModCallbackEvent modEvent{"BLC_Follow_Request_Accepted", "", 1.0f, InworldCaller::conversationPair};
+        SKSE::ModCallbackEvent modEvent{"BLC_Follow_Request_Accepted", "", 1.0f, InworldCaller::conversationActor};
         SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
     }
 
@@ -171,234 +167,128 @@ public:
     }
 
     static void ConnectionSuccessful() {
-        InworldCaller::conversationPair = conversationActor;
         InworldCaller::conversationOngoing = true;
-        InworldCaller::connecting = false;
         InworldCaller::stopSignal = false;
+        InworldCaller::connecting = false;
         SetHoldPosition(0, conversationActor);
     }
 
     static void Speak(std::string message, float duration) {
         SKSE::ModCallbackEvent modEvent{"BLC_Speak", "", 0.0075f, InworldCaller::conversationActor};
         SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
-        SubtitleManager::ShowSubtitle(message, duration);
-        if (InworldCaller::stopSignal || !InworldCaller::conversationOngoing) {
-            SetHoldPosition(1, InworldCaller::conversationActor);
-            InworldCaller::Stop();
-        }
+        SubtitleManager::ShowSubtitle(InworldCaller::conversationActor->GetName(), message, duration);
     }
 
     static void SpeakN2N(std::string message, int speaker, float duration) {
+        std::lock(sourceMutex, targetMutex);
+        std::lock_guard<std::mutex> lk1(sourceMutex, std::adopt_lock);
+        std::lock_guard<std::mutex> lk2(targetMutex, std::adopt_lock);
         if (speaker == 0) {
             SKSE::ModCallbackEvent modEvent{"BLC_Speak_N2N", "", 0, InworldCaller::N2N_SourceActor};
             SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
+            SubtitleManager::ShowSubtitle(InworldCaller::N2N_SourceActor->GetName(), message, duration);
         } else {
             SKSE::ModCallbackEvent modEvent{"BLC_Speak_N2N", "", 1, InworldCaller::N2N_TargetActor};
             SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
+            SubtitleManager::ShowSubtitle(InworldCaller::N2N_TargetActor->GetName(), message, duration);
         }
-        SubtitleManager::ShowSubtitle(message, duration);
     }
 };
 
 #include "SocketManager.cpp"
+#include "InworldEventSink.cpp"
 
+static class EventWatcher {
+    inline static vector<string> lines;
+    static bool contains(string line) { return std::find(lines.begin(), lines.end(), line) != lines.end(); }
 
-class InworldEventSink : public RE::BSTEventSink<SKSE::CrosshairRefEvent>,
-                         public RE::BSTEventSink<RE::InputEvent*> {
-    InworldEventSink() = default;
-    InworldEventSink(const InworldEventSink&) = delete;
-    InworldEventSink(InworldEventSink&&) = delete;
-    InworldEventSink& operator=(const InworldEventSink&) = delete;
-    InworldEventSink& operator=(InworldEventSink&&) = delete;
-
-    
-
-class OpenTextboxCallback : public RE::BSScript::IStackCallbackFunctor {
-        virtual inline void operator()(RE::BSScript::Variable a_result) override {
-            InworldEventSink::GetSingleton()->trigger_result_menu("UITextEntryMenu");
-        }
-        virtual inline void SetObject(const RE::BSTSmartPointer<RE::BSScript::Object>& a_object){};
-
-    public:
-        OpenTextboxCallback() = default;
-        bool operator==(const OpenTextboxCallback& other) const { return false; }
-    };
-
-    class TextboxResultCallback : public RE::BSScript::IStackCallbackFunctor {
-    public:
-        RE::Actor* conversationActor;
-        TextboxResultCallback(std::function<void()> callback, RE::Actor* form) : callback_(callback) {
-            conversationActor = form;
-        }
-
-        virtual inline void operator()(RE::BSScript::Variable a_result) override {
-            if (a_result.IsNoneObject()) {
-            } else if (a_result.IsString()) {
-                auto playerMessage = std::string(a_result.GetString());
-
-                std::thread(
-                    [](RE::Actor* actor, std::string msg) { SocketManager::getInstance().sendMessage(msg, actor); },
-                    conversationActor, playerMessage)
-                    .detach();
-
-                if (to_lower(playerMessage).find(std::string("goodbye")) != std::string::npos) {
-                    SocketManager::getInstance().SendStopSignal(InworldEventSink::GetSingleton()->conversationPair);
-                    InworldEventSink::GetSingleton()->conversationPair = nullptr;
-                    InworldCaller::stopSignal = true;
-                }
-            }
-            callback_();
-        }
-
-        virtual inline void SetObject(const RE::BSTSmartPointer<RE::BSScript::Object>& a_object){};
-
-    private:
-        // Member variable to store the callback function
-        std::function<void()> callback_;
-    };
+    static bool isDialogueMenuActive() { 
+        RE::MenuTopicManager* topicManager = RE::MenuTopicManager::GetSingleton();
+        return topicManager->speaker.get() != nullptr;
+    }
 
 public:
-    bool isLocked;
-    RE::Actor* previousActor;
-    RE::Actor* conversationPair;
-    bool pressingKey = false;
-    bool isOpenedWindow = false;
-    bool isMenuInitialized = false;
+    class DialogueMenuEx : public RE::DialogueMenu {
+    public:
+        using ProcessMessage_t = decltype(&RE::DialogueMenu::ProcessMessage);
+        inline static REL::Relocation<ProcessMessage_t> _ProcessMessage;
 
-    static InworldEventSink* GetSingleton() {
-        static InworldEventSink singleton;
-        return &singleton;
-    }
+        void ProcessTopic(RE::MenuTopicManager* topicManager, RE::Actor* speaker) {
+            if (topicManager->lastSelectedDialogue != nullptr) {
+                RE::BSSimpleList<RE::DialogueResponse*> responses = topicManager->lastSelectedDialogue->responses;
 
-    RE::BSEventNotifyControl ProcessEvent(const SKSE::CrosshairRefEvent* event,
-                                          RE::BSTEventSource<SKSE::CrosshairRefEvent>*) {
-
-        if (event->crosshairRef) {
-            const char* objectName = event->crosshairRef->GetBaseObject()->GetName();
-
-            try {
-                auto baseObject = event->crosshairRef->GetBaseObject();
-                auto talkingWith = RE::TESForm::LookupByID<RE::TESNPC>(baseObject->formID);
-                auto actorObject = event->crosshairRef->As<RE::Actor>();
-
-                if (talkingWith && actorObject) {
-                    conversationPair = nullptr;
-                    auto className = talkingWith->npcClass->fullName;
-                    auto raceName = talkingWith->race->fullName;
-
-                    conversationPair = actorObject;
+                std::string fullResponse = "";
+                for (const auto& response : responses) {
+                    fullResponse.append(response->text.c_str());
                 }
-            } catch (...) {
+
+                string characterEventText = "";
+                string playerEventText = string(RE::PlayerCharacter::GetSingleton()->GetName()) + " said \"" +
+                                   string(topicManager->lastSelectedDialogue->topicText.c_str()) + "\".";
+                
+
+                 for (RE::Actor* actor : actors) {
+                    if (actor->GetName() == speaker->GetName()) {
+                        characterEventText = "You said \"" + string(fullResponse) + "\".";
+                    } else {
+                        characterEventText = string(speaker->GetName()) + " said \"" + string(fullResponse) + "\".";
+                    } 
+
+                    SocketManager::getInstance().SendLogEvent(actor, playerEventText);
+                    SocketManager::getInstance().SendLogEvent(actor, characterEventText);
+                }
+
+                if (!contains(fullResponse)) {
+                    lines.push_back(fullResponse);
+                }
             }
         }
-        return RE::BSEventNotifyControl::kContinue;
-    }
 
-    void ReleaseListener() { InworldEventSink::GetSingleton()->isLocked = false; }
+        RE::UI_MESSAGE_RESULTS ProcessMessage_Hook(RE::UIMessage& a_message) {
+            RE::MenuTopicManager* topicManager = RE::MenuTopicManager::GetSingleton();
+            RE::Actor* speaker = static_cast<RE::Actor*>(topicManager->speaker.get().get());
 
-    void OnKeyReleased() {
-        if (pressingKey && conversationPair != nullptr) {
-            pressingKey = false;
-            SocketManager::getInstance().controlVoiceInput(false, conversationPair);
+            switch (a_message.type.get()) {
+                case RE::UI_MESSAGE_TYPE::kShow: {
+                    ProcessTopic(topicManager, speaker);
+                } break;
+                case RE::UI_MESSAGE_TYPE::kHide: {
+                    ProcessTopic(topicManager, speaker);
+                } break;
+            }
+
+            return _ProcessMessage(this, a_message);
         }
-    }
+    };
 
-    void OnKeyPressed() {
-        if (!pressingKey && conversationPair != nullptr) {
-            pressingKey = true;
-            SocketManager::getInstance().controlVoiceInput(true, conversationPair);
-        }
-    }
+    inline static set<RE::Actor*> actors;
 
-    void OnPlayerRequestInput(RE::BSFixedString menuID) {
-        const auto skyrimVM = RE::SkyrimVM::GetSingleton();
-        auto vm = skyrimVM ? skyrimVM->impl : nullptr;
-        if (vm) {
-            isOpenedWindow = true;
-            RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor> callbackOpenTextbox(new OpenTextboxCallback());
-            RE::TESForm* emptyForm = NULL;
-            RE::TESForm* emptyForm2 = NULL;
-            auto args2 = RE::MakeFunctionArguments(std::move(menuID), std::move(emptyForm), std::move(emptyForm2));
-            vm->DispatchStaticCall("UIExtensions", "OpenMenu", args2, callbackOpenTextbox);
-        }
-    }
+    static void WatchSubtitles() {
+        if (isDialogueMenuActive()) return;
 
-    void InitMenu(RE::BSFixedString menuID) {
-        const auto skyrimVM = RE::SkyrimVM::GetSingleton();
-        auto vm = skyrimVM ? skyrimVM->impl : nullptr;
-        if (vm) {
-            RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor> callback;
-            auto args = RE::MakeFunctionArguments(std::move(menuID));
-            vm->DispatchStaticCall("UIExtensions", "InitMenu", args, callback);
-        }
-    }
-
-    void trigger_result_menu(RE::BSFixedString menuID) {
-        const auto skyrimVM = RE::SkyrimVM::GetSingleton();
-        auto vm = skyrimVM ? skyrimVM->impl : nullptr;
-        if (vm) {
-            RE::BSTSmartPointer<RE::BSScript::IStackCallbackFunctor> callback(new TextboxResultCallback(
-                []() {
-                    InworldEventSink::GetSingleton()->ReleaseListener();
-                },
-                conversationPair));
-            auto args = RE::MakeFunctionArguments(std::move(menuID));
-            vm->DispatchStaticCall("UIExtensions", "GetMenuResultString", args, callback);
-            isOpenedWindow = false;
-        }
-    }
-
-    RE::BSEventNotifyControl ProcessEvent(RE::InputEvent* const* eventPtr, RE::BSTEventSource<RE::InputEvent*>*) {
-        if (!eventPtr) return RE::BSEventNotifyControl::kContinue;
-        auto* event = *eventPtr;
-        if (!event) return RE::BSEventNotifyControl::kContinue;
-
-        if (!isMenuInitialized) {
-            isMenuInitialized = true;
-            InitMenu("UITextEntryMenu");
-        }
-
-        try {
-            if (event->GetEventType() == RE::INPUT_EVENT_TYPE::kButton) {
-                auto* buttonEvent = event->AsButtonEvent();
-                auto dxScanCode = buttonEvent->GetIDCode();
-                // Press V key to speak.
-                if (dxScanCode == 47) {
-                    if (!isOpenedWindow) {
-                        if (buttonEvent->IsUp()) {
-                            OnKeyReleased();
+        for (RE::SubtitleInfo subtitle : RE::SubtitleManager::GetSingleton()->subtitles) {
+            if (!contains(subtitle.subtitle.c_str()) && string(subtitle.subtitle.c_str()).find("...")  == std::string::npos) {
+                for (RE::Actor* actor : actors) {
+                    try {
+                        string eventText = "";
+                        if (actor->GetName() == subtitle.speaker.get().get()->GetName()) {
+                            eventText = "You said \"" + string(subtitle.subtitle.c_str()) + "\".";
                         } else {
-                            OnKeyPressed();
+                        eventText = string(subtitle.speaker.get().get()->GetName()) + " said \"" +
+                                    string(subtitle.subtitle.c_str()) + "\".";
                         }
+                        SocketManager::getInstance().SendLogEvent(actor, eventText);
+                    } catch (...) {
                     }
-                    // U key
-                } else if (dxScanCode == 22) {
-                    if (buttonEvent->IsDown() && conversationPair != nullptr && !InworldCaller::stopSignal && !InworldCaller::conversationOngoing && !InworldCaller::connecting) {
-                        InworldCaller::connecting = true;
-                        InworldCaller::Start(conversationPair);
-                    } else if (buttonEvent->IsDown() && InworldCaller::conversationOngoing) {
-                        if (!isOpenedWindow) OnPlayerRequestInput("UITextEntryMenu");
-                    }
-                    // Y key
-                } else if (buttonEvent->IsDown() && dxScanCode == 27) {
-                    SocketManager::getInstance().SendN2NStopSignal();
                 }
-                /* // funbit
-                else if (dxScanCode == 71) {
-                    // Start
-                    InworldUtility::StartQuest("InworldNazeemDestroyer");
-                } else if (dxScanCode == 71) {
-                    // Proceed
-                    InworldUtility::MoveQuestToStage("InworldNazeemDestroyer",10);
-                } 
-                */
+                lines.push_back(subtitle.subtitle.c_str());
             }
-        } catch (...) {
         }
-
-        return RE::BSEventNotifyControl::kContinue;
     }
+};
 
+class ModPort {
+public:
     static bool Start(RE::StaticFunctionTag*, RE::Actor* target, string currentDateTime) {
         if (!target) {
             return false;
@@ -423,8 +313,8 @@ public:
             return false;
         }
 
-        SocketManager::getInstance().SendN2NStartSignal(InworldCaller::N2N_SourceActor, InworldCaller::N2N_TargetActor,
-                                                        currentDateTime);
+        SocketManager::getInstance().SendN2NStartSignal(InworldCaller::N2N_SourceActor,
+           InworldCaller::N2N_TargetActor, currentDateTime);
 
         return true;
     }
@@ -434,13 +324,29 @@ public:
             return false;
         }
 
-        SocketManager::getInstance().SendLogEvent(actor, log);
+         SocketManager::getInstance().SendLogEvent(actor, log);
+
+        return true;
+    }
+
+    static bool WatchSubtitles(RE::StaticFunctionTag*) {
+        EventWatcher::WatchSubtitles();
+
+        return true;
+    }
+
+    static bool ClearActors(RE::StaticFunctionTag*) {
+        EventWatcher::actors.empty();
+
+        return true;
+    }
+
+    static bool SendActor(RE::StaticFunctionTag*, RE::Actor* actor) {
+        EventWatcher::actors.insert(actor);
 
         return true;
     }
 };
-
-
 
 void OnMessage(SKSE::MessagingInterface::Message* message) {
     if (message->type == SKSE::MessagingInterface::kInputLoaded) {
@@ -457,6 +363,17 @@ void writeInworldLog(const std::string& message) {
     }
 }
 
+bool RegisterPapyrusFunctions(RE::BSScript::IVirtualMachine* vm) {
+    vm->RegisterFunction("Start", "InworldSKSE", &ModPort::Start);
+    vm->RegisterFunction("N2N_Initiate", "InworldSKSE", &ModPort::N2N_Initiate);
+    vm->RegisterFunction("N2N_Start", "InworldSKSE", &ModPort::N2N_Start);
+    vm->RegisterFunction("LogEvent", "InworldSKSE", &ModPort::LogEvent);
+    vm->RegisterFunction("WatchSubtitles", "InworldSKSE", &ModPort::WatchSubtitles);
+    vm->RegisterFunction("ClearActors", "InworldSKSE", &ModPort::ClearActors);
+    vm->RegisterFunction("SendActor", "InworldSKSE", &ModPort::SendActor);
+
+    return true;
+}
 
 #include <ShellAPI.h>
 
@@ -468,8 +385,8 @@ void StartAudioBus() {
     HINSTANCE result = ShellExecute(NULL, L"open", exePath, NULL, clientPath.parent_path().c_str(), SW_SHOWNORMAL);
 }
 
-void StartClient() { 
-    auto mainPath = std::filesystem::current_path(); 
+void StartClient() {
+    auto mainPath = std::filesystem::current_path();
     auto clientPath = mainPath / "Inworld" / "SkyrimClient.exe";
     writeInworldLog("Opening: " + clientPath.string());
     LPCWSTR exePath = clientPath.c_str();
@@ -477,14 +394,7 @@ void StartClient() {
     StartAudioBus();
 }
 
-bool RegisterPapyrusFunctions(RE::BSScript::IVirtualMachine* vm) {
-    vm->RegisterFunction("Start", "InworldSKSE", &InworldEventSink::Start);
-    vm->RegisterFunction("N2N_Initiate", "InworldSKSE", &InworldEventSink::N2N_Initiate);
-    vm->RegisterFunction("N2N_Start", "InworldSKSE", &InworldEventSink::N2N_Start);
-    vm->RegisterFunction("LogEvent", "InworldSKSE", &InworldEventSink::LogEvent);
-
-    return true;
-}
+#include "Hooks.h"
 
 SKSEPluginLoad(const SKSE::LoadInterface* skse) {
     SKSE::Init(skse);
@@ -495,10 +405,10 @@ SKSEPluginLoad(const SKSE::LoadInterface* skse) {
 
     // ScriptSource
     auto* eventSourceHolder = RE::ScriptEventSourceHolder::GetSingleton();
-
+    
     // SKSE
     SKSE::GetCrosshairRefEventSource()->AddEventSink(eventSink);
-
+    
     // Input Device
     SKSE::GetMessagingInterface()->RegisterListener(OnMessage);
 
@@ -506,6 +416,12 @@ SKSEPluginLoad(const SKSE::LoadInterface* skse) {
     if (papyrus) {
         papyrus->Register(RegisterPapyrusFunctions);
     }
+
+    REL::Relocation<std::uintptr_t> vTable_dm(RE::VTABLE_DialogueMenu[0]);
+    EventWatcher::DialogueMenuEx::_ProcessMessage =
+        vTable_dm.write_vfunc(0x4, &EventWatcher::DialogueMenuEx::ProcessMessage_Hook);
+
+    //Inworld::UpdatePCHook::Install();
 
     return true;
 }

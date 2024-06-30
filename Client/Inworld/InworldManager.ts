@@ -25,7 +25,6 @@ export default class InworldClientManager {
     private isAudioSessionStarted = false;
     private is_n2n = false;
     private speaker;
-    private characterName: string;
     private conversationOngoing;
     private is_ending = false;
     private prompt;
@@ -77,7 +76,7 @@ export default class InworldClientManager {
             this.is_ending = false;
 
             this.socketController = new SkyrimInworldSocketController(socket);
-            this.client.setOnMessage((data : any) => this.socketController.ProcessMessage(data, this.is_n2n, this.speaker, this.is_ending));
+            this.client.setOnMessage((data : any) => this.socketController.ProcessMessage(data, this));
 
             this.client.setOnError((err) => {
                 if (err.code != 10 && err.code != 1)
@@ -97,7 +96,6 @@ export default class InworldClientManager {
                 this.blcRecorder.connect(this.connection);
                 this.socketController.SetRecorder(this.blcRecorder);
             }
-            this.characterName = id;
             let characters = await this.connection.getCharacters()
             this.connection.setCurrentCharacter(characters[0])
             console.log("Starting audio session...")
@@ -160,6 +158,14 @@ export default class InworldClientManager {
         this.SendNarratedAction(initMessage);
     }
 
+    Stop() {
+        this.is_ending = true;
+    }
+
+    IsEnding() {
+        return this.is_ending;
+    }
+
     GetDialogueHistory(id) {
         try {
             id = id.toLowerCase();
@@ -202,7 +208,7 @@ export default class InworldClientManager {
    Say(message : string, is_ending?) {
         if (this.IsConnected) {
             this.connection.sendText(message);
-            this.is_ending = is_ending;
+            this.is_ending = is_ending ? is_ending : this.is_ending;
         }
     }
 

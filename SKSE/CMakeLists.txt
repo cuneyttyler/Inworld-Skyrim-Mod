@@ -27,6 +27,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC websocketpp::websocketpp)
 find_package(Boost REQUIRED COMPONENTS random)
 target_link_libraries(${PROJECT_NAME} PUBLIC Boost::boost Boost::random)
 
+add_compile_options(/bigobj)
 
 if(DEFINED OUTPUT_FOLDER)
     set(DLL_FOLDER "${OUTPUT_FOLDER}/SKSE/Plugins")
@@ -47,5 +48,6 @@ if(DEFINED OUTPUT_FOLDER)
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_PDB_FILE:${PROJECT_NAME}>" "${DLL_FOLDER}/$<TARGET_PDB_FILE_NAME:${PROJECT_NAME}>"
             VERBATIM
         )
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
     endif()
 endif()

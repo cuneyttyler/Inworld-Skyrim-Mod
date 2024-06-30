@@ -2,6 +2,7 @@ import {BLCRecorder} from './Audio/BLCRecorder.js';
 import {AudioData, AudioProcessor} from './Audio/AudioProcessor.js'
 import EventBus from '../EventBus.js'
 import { logToLog }  from '../SkyrimClient.js'
+import { DialogParticipant } from '@inworld/nodejs-sdk';
 
 export function GetSocketResponse(message: string, phoneme: string, type: string, duration, is_n2n, speaker) {
     return {"message": message, "phoneme": phoneme, "type": type, "duration": duration, "is_n2n": is_n2n, "speaker": speaker}
@@ -23,23 +24,23 @@ export class SkyrimInworldSocketController {
 
     constructor(private socket : WebSocket) {}
 
-    async ProcessMessage(msg : any, is_n2n, speaker, is_ending) {
-        if(is_n2n && is_ending) {
+    async ProcessMessage(msg : any, cm) {
+        if(cm.is_n2n && cm.IsEnding()) {
             return;
         }
 
         var temp_file_suffix = "0"
         var topic_filename = ""
         var target = 0;
-        if(is_n2n && speaker == 0) {
+        if(cm.is_n2n && cm.speaker == 0) {
             temp_file_suffix = "0"
             topic_filename = "DialogueGe_InworldN2NTarge_0005F002_1"
             target = 1;
-        } else if(is_n2n && speaker == 1) {
+        } else if(cm.is_n2n && cm.speaker == 1) {
             temp_file_suffix = "1"
             topic_filename = "DialogueGe_InworldN2NSourc_000274FA_1"
             target = 0;
-        } else if(is_n2n && speaker == 2) {
+        } else if(cm.is_n2n && cm.speaker == 2) {
             temp_file_suffix = "0"
             topic_filename = "DialogueGe_InworldN2NSourc_000274FA_1"
             target = 0
@@ -57,7 +58,7 @@ export class SkyrimInworldSocketController {
             });
             setTimeout(()=> {
                 this.audioProcessor.addAudioStream(new AudioData(msg.audio.chunk, topic_filename, this.Responses[this.ResponseIndex], this.stepCount, temp_file_suffix, (duration) => {
-                    let result = GetSocketResponse(this.CurrentResponse, this.CombinedPhoneme, "chat", duration, is_n2n, target);
+                    let result = GetSocketResponse(this.CurrentResponse, this.CombinedPhoneme, "chat", duration, cm.is_n2n, target);
                     this.socket.send(JSON.stringify(result));
                     this.CurrentResponse = "";
                 }))
@@ -70,34 +71,41 @@ export class SkyrimInworldSocketController {
                 this.CombinedUserInput = msg.text.text;
             } else {
                 let responseMessage = msg.text.text;
+                this.CurrentResponse = responseMessage;
                 this.Responses.push(responseMessage)
                 this.ResponseIndex++;
             }
         } else if (msg.isInteractionEnd() && this.Responses.length > 0) {
             ++this.stepCount
 
-            setTimeout(() => {
-                let response = this.Responses.join(' ');
+            let response = this.Responses.join(' ');
 
-                console.log(`Character said: ${response}`)
-                logToLog(`Character said: ${response}`)
-                
-                if(!is_n2n) {
-                    EventBus.GetSingleton().emit('TARGET_RESPONSE', response);
-                    if(response == this.FollowAcceptResponse) {
-                        let payload = GetSocketResponse("", "", "follow_request_accepted", 0, is_n2n, target);
-                        this.socket.send(JSON.stringify(payload))
-                    }
-                } else if(is_n2n && speaker == 0 && !is_ending) {
-                    EventBus.GetSingleton().emit('SOURCE_TARGET_RESPONSE', response)
-                } else if(is_n2n && speaker == 1 && !is_ending) {
-                    EventBus.GetSingleton().emit('TARGET_SOURCE_RESPONSE', response)
-                } else if(is_n2n && speaker == 2){
-                    EventBus.GetSingleton().emit('GM_SOURCE_RESPONSE', response)
+            console.log(`Character said: ${response}`)
+            logToLog(`Character said: ${response}`)
+            
+            if(!cm.is_n2n) {
+                EventBus.GetSingleton().emit('TARGET_RESPONSE', response);
+                if(response == this.FollowAcceptResponse) {
+                    let payload = GetSocketResponse("", "", "follow_request_accepted", 0, cm.is_n2n, target);
+                    this.socket.send(JSON.stringify(payload))
                 }
-                this.Responses = [];
-                this.ResponseIndex = -1;
-            }, 500)
+                if(cm.IsEnding()) {
+                    setTimeout(() => {
+                        let result = GetSocketResponse(this.CurrentResponse, this.CombinedPhoneme, "end", 0, cm.is_n2n, target);
+                        this.socket.send(JSON.stringify(result));
+                        EventBus.GetSingleton().emit("END");
+                    }, 7000)
+                }
+            } else if(cm.is_n2n && cm.speaker == 0 && !cm.IsEnding()) {
+                EventBus.GetSingleton().emit('SOURCE_TARGET_RESPONSE', response)
+            } else if(cm.is_n2n && cm.speaker == 1 && !cm.IsEnding()) {
+                EventBus.GetSingleton().emit('TARGET_SOURCE_RESPONSE', response)
+            } else if(cm.is_n2n && cm.speaker == 2){
+                EventBus.GetSingleton().emit('GM_SOURCE_RESPONSE', response)
+            }    
+
+            this.Responses = [];
+            this.ResponseIndex = -1;
         }
     }
 
