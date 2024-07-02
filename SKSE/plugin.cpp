@@ -273,16 +273,16 @@ public:
             SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
             SendResponseLog(InworldCaller::N2N_SourceActor, message);
             SubtitleManager::ShowSubtitle(InworldCaller::N2N_SourceActor->GetName(), message, duration);
-            /*this_thread::sleep_for(chrono::milliseconds((long)(duration * 1000)));
-            SubtitleManager::HideSubtitle();*/
+            this_thread::sleep_for(chrono::milliseconds((long)(duration * 1000)));
+            SubtitleManager::HideSubtitle();
         } else {
             if (InworldCaller::N2N_TargetActor == nullptr) return;
             SKSE::ModCallbackEvent modEvent{"BLC_Speak_N2N", "", 1, InworldCaller::N2N_TargetActor};
             SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
             SendResponseLog(InworldCaller::N2N_TargetActor, message);
             SubtitleManager::ShowSubtitle(InworldCaller::N2N_TargetActor->GetName(), message, duration);
-            /*this_thread::sleep_for(chrono::milliseconds((long)(duration * 1000)));
-            SubtitleManager::HideSubtitle();*/
+            this_thread::sleep_for(chrono::milliseconds((long)(duration * 1000)));
+            SubtitleManager::HideSubtitle();
         }
     }
 };
