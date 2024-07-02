@@ -4,7 +4,7 @@ actor[] actors
 int numFoundActors
 
 ReferenceAlias[] property ActorRefs auto
-formlist property _InworldVoiceTypes auto
+formlist property _InworldRaceList auto
 
 Event OnInit()
     numFoundActors = 0
@@ -16,12 +16,12 @@ Function LogEvents()
         FindAllNpcsInArea()
         AssignActorsToRefs()
         SendActors()
+        Utility.Wait(1)
     EndWhile
 EndFunction
 
 Function FindAllNpcsInArea()
-    actors = MiscUtil.ScanCellActors(Game.GetPlayer(),700)
-    
+    actors = MiscUtil.ScanCellNPCs(Game.GetPlayer(), 2500)
     int i = 0
     While i < actors.Length
         If !IsAvailable(actors[i])
@@ -29,7 +29,7 @@ Function FindAllNpcsInArea()
         Else
             i += 1
         EndIf
-    EndWhile 
+    EndWhile
 EndFunction
 
 Function AssignActorsToRefs()
@@ -52,7 +52,7 @@ Function SendActors()
 EndFunction
 
 bool function IsAvailable(Actor _actor)
-    return ((_InworldVoiceTypes.GetAt(0) as FormList).HasForm(_actor.GetVoiceType()) || (_InworldVoiceTypes.GetAt(1) as FormList).HasForm(_actor.GetVoiceType()))  && _actor.IsEnabled() && !_actor.isDead() && !_actor.IsUnconscious()
+    return _InworldRaceList.HasForm(_actor.GetRace()) && _actor.IsEnabled() && !_actor.isDead() && !_actor.IsUnconscious()
 endFunction
 
 bool Function IsInArray(Actor _actor, Actor[] arr)

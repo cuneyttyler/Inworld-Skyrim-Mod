@@ -17,8 +17,7 @@
 
 using namespace RE::BSScript;
 using json = nlohmann::json;
-
-void Log(std::string log) { RE::ConsoleLog::GetSingleton()->Print(log.c_str()); }
+using namespace std;
 
 static class InworldUtility {
 public:
@@ -36,40 +35,108 @@ public:
     }
 };
 
+static class Util {
+public:
+    inline static int LOG_LEVEL = 3;
+    inline static uint32_t speakerNameColor;
+
+    static void GetSettings() {
+        auto iniSettings = RE::INISettingCollection::GetSingleton();
+        speakerNameColor = iniSettings->GetSetting("iSubtitleSpeakerNameColor:Interface")->GetUInt();
+    }
+
+    static std::string GetActorName(RE::Actor* actor) {
+        if (actor == nullptr) {
+            return "";
+        }
+
+        if (auto xTextData = actor->extraList.GetByType<RE::ExtraTextDisplayData>(); xTextData) {
+            return actor->GetDisplayFullName();
+        }
+
+        if (auto actorBase = actor->GetActorBase(); actorBase) {
+            if (actorBase->shortName.size() > 0) {
+                return actorBase->shortName.c_str();
+            }
+        }
+
+        return actor->GetName();
+    }
+
+    static std::string toLower(std::string s) {
+        for (char& c : s) c = tolower(c);
+        return s;
+    }
+
+    static void ConsoleLog(std::string log) { RE::ConsoleLog::GetSingleton()->Print(log.c_str()); }
+    
+    static void writeInworldLog(const std::string& message, int level = 3) {
+        if (level > LOG_LEVEL) {
+            return;
+        }
+
+        std::string levelStr = "";
+        switch (level) {
+            case 1:
+                levelStr = "ERROR: ";
+                break;
+            case 2:
+                levelStr = "WARNING: ";
+                break;
+            case 3:
+                levelStr = "INFO: ";
+                break;
+            case 4:
+                levelStr = "DEBUG: ";
+                break;
+        }
+
+        std::ofstream logFile("InworldSkyrim.log", std::ios::app);
+        if (logFile.is_open()) {
+            logFile << levelStr + message << std::endl;
+            logFile.close();
+        }
+    }
+
+    static std::string trim(std::string str) { return std::regex_replace(str, std::regex{R"(^\s+|\s+$)"}, ""); }
+};
+
 using namespace RE::BSScript;
 using namespace std;
-
-string to_lower(string s) {
-    for (char& c : s) c = tolower(c);
-    return s;
-}
 
 static class SubtitleManager {
 public:
     static void ShowSubtitle(string actorName, string subtitle, float duration) {
-        HideSubtitle();
 
-        auto hudMenu = RE::UI::GetSingleton()->GetMenu<RE::HUDMenu>(RE::HUDMenu::MENU_NAME);
-        auto root = hudMenu->GetRuntimeData().root;
-        auto iniSettings = RE::INISettingCollection::GetSingleton();
-        uint32_t speakerNameColor = iniSettings->GetSetting("iSubtitleSpeakerNameColor:Interface")->GetUInt();
+        try {
+            auto hudMenu = RE::UI::GetSingleton()->GetMenu<RE::HUDMenu>(RE::HUDMenu::MENU_NAME);
+            auto root = hudMenu->GetRuntimeData().root;
 
-        std::this_thread::sleep_for(0.25s);
-
-        subtitle = std::format("<font color='#{:06X}'>{}</font>: {}", speakerNameColor, actorName, subtitle.c_str());
-        Log("Show subtitle: " + subtitle);
-        if (subtitle.length() > 0) {
-            RE::GFxValue asStr(subtitle.c_str());
-            root.Invoke("ShowSubtitle", nullptr, &asStr, 1);
-        } else {
-            HideSubtitle();
+            if (Util::trim(subtitle).length() > 0) {
+                subtitle =
+                    std::format("<font color='#{:06X}'>{}</font>: {}", Util::speakerNameColor, actorName, subtitle.c_str());
+                RE::GFxValue asStr(subtitle.c_str());
+                root.Invoke("ShowSubtitle", nullptr, &asStr, 1);
+            } else {
+                HideSubtitle();
+            }
+        } catch (const exception& e) {
+            Util::writeInworldLog("Exception during ==ShowSubtitle==: " + string(e.what()), 1);
+        } catch (...) {
+            Util::writeInworldLog("Unknown exception during ==ShowSubtitle==.", 1);
         }
     }
 
     static void HideSubtitle() {
-        auto hudMenu = RE::UI::GetSingleton()->GetMenu<RE::HUDMenu>(RE::HUDMenu::MENU_NAME);
-        auto root = hudMenu->GetRuntimeData().root;
-        root.Invoke("HideSubtitle", nullptr, nullptr, 0);
+        try {
+            auto hudMenu = RE::UI::GetSingleton()->GetMenu<RE::HUDMenu>(RE::HUDMenu::MENU_NAME);
+            auto root = hudMenu->GetRuntimeData().root;
+            root.Invoke("HideSubtitle", nullptr, nullptr, 0);
+        } catch (const exception& e) {
+            Util::writeInworldLog("Exception during ==HideSubtitle==: " + string(e.what()), 1);
+        } catch (...) {
+            Util::writeInworldLog("Unknown exception during ==HideSubtitle==.", 1);
+        }
     }
 };
 
@@ -82,9 +149,6 @@ public:
     inline static int n2n_established_response_count = 0;
     inline static RE::Actor* N2N_SourceActor;
     inline static RE::Actor* N2N_TargetActor;
-    inline static std::mutex sourceMutex;
-    inline static std::mutex targetMutex;
-
     static std::string DisplayMessage(std::string str, int fontSize, int width) {
         std::stringstream ss(str);
         std::string word;
@@ -115,6 +179,8 @@ public:
     }
 
     static void N2N_Init() {
+        Util::writeInworldLog("Starting dialogue between " + Util::GetActorName(InworldCaller::N2N_SourceActor) + " and " +
+                        Util::GetActorName(InworldCaller::N2N_SourceActor) + ".", 3);
         SKSE::ModCallbackEvent modEvent{"BLC_Start_N2N", "", 1.0f, nullptr};
         SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
         N2N_Init_Source();
@@ -132,7 +198,7 @@ public:
     }
 
     static void Start(RE::Actor* actor) {
-        Log("SendCallback " + string(actor->GetName()));
+        Util::writeInworldLog("Starting dialogue with " + Util::GetActorName(actor) + ".", 3);
         SKSE::ModCallbackEvent modEvent{"BLC_Start", "", 1.0f, actor};
         SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
         InworldCaller::conversationActor = actor;
@@ -140,12 +206,19 @@ public:
     }
 
     static void Stop() {
+        Util::writeInworldLog("Stopping dialogue with " + Util::GetActorName(InworldCaller::conversationActor) + ".", 3);
         SKSE::ModCallbackEvent modEvent{"BLC_Stop", "", 1.0f, nullptr};
         SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
         SetHoldPosition(1, InworldCaller::conversationActor);
         InworldCaller::stopSignal = false;
         InworldCaller::conversationOngoing = false;
         InworldCaller::conversationActor = nullptr;
+        SubtitleManager::HideSubtitle();
+    }
+
+    static void Reset() {
+        InworldCaller::conversationActor = nullptr;
+        InworldCaller::connecting = false;
     }
 
     static void SendFollowRequestAcceptedSignal() {
@@ -159,48 +232,68 @@ public:
     }
 
     static void N2N_Stop() {
+        Util::writeInworldLog("Stopping dialogue between " + Util::GetActorName(InworldCaller::N2N_SourceActor) + " and " +
+                            Util::GetActorName(InworldCaller::N2N_SourceActor) + ".", 3);
         n2n_established_response_count = 0;
         SKSE::ModCallbackEvent modEvent{"BLC_Stop_N2N", "", 1.0f, nullptr};
         SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
         InworldCaller::N2N_SourceActor = nullptr;
         InworldCaller::N2N_TargetActor = nullptr;
+        SubtitleManager::HideSubtitle();
     }
 
     static void ConnectionSuccessful() {
+        Util::writeInworldLog("Connected to " + Util::GetActorName(conversationActor) + ".", 3);
         InworldCaller::conversationOngoing = true;
         InworldCaller::stopSignal = false;
         InworldCaller::connecting = false;
         SetHoldPosition(0, conversationActor);
     }
 
+    static void SendResponseLog(RE::Actor* actor, string message) {
+        SKSE::ModCallbackEvent modEvent{"BLC_SendResponseLog", message, 1, actor};
+        SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
+    }
+
     static void Speak(std::string message, float duration) {
+        if (InworldCaller::conversationActor == nullptr) return;
         SKSE::ModCallbackEvent modEvent{"BLC_Speak", "", 0.0075f, InworldCaller::conversationActor};
         SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
+        SendResponseLog(InworldCaller::conversationActor, message);
         SubtitleManager::ShowSubtitle(InworldCaller::conversationActor->GetName(), message, duration);
+        this_thread::sleep_for(chrono::milliseconds((long)(duration * 1000)));
+        SubtitleManager::HideSubtitle();
     }
 
     static void SpeakN2N(std::string message, int speaker, float duration) {
-        std::lock(sourceMutex, targetMutex);
-        std::lock_guard<std::mutex> lk1(sourceMutex, std::adopt_lock);
-        std::lock_guard<std::mutex> lk2(targetMutex, std::adopt_lock);
+        Util::writeInworldLog("MESSAGE: " + message + ", " + to_string(speaker), 4);
         if (speaker == 0) {
+            if (InworldCaller::N2N_SourceActor == nullptr) return;
             SKSE::ModCallbackEvent modEvent{"BLC_Speak_N2N", "", 0, InworldCaller::N2N_SourceActor};
             SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
+            SendResponseLog(InworldCaller::N2N_SourceActor, message);
             SubtitleManager::ShowSubtitle(InworldCaller::N2N_SourceActor->GetName(), message, duration);
+            /*this_thread::sleep_for(chrono::milliseconds((long)(duration * 1000)));
+            SubtitleManager::HideSubtitle();*/
         } else {
+            if (InworldCaller::N2N_TargetActor == nullptr) return;
             SKSE::ModCallbackEvent modEvent{"BLC_Speak_N2N", "", 1, InworldCaller::N2N_TargetActor};
             SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
+            SendResponseLog(InworldCaller::N2N_TargetActor, message);
             SubtitleManager::ShowSubtitle(InworldCaller::N2N_TargetActor->GetName(), message, duration);
+            /*this_thread::sleep_for(chrono::milliseconds((long)(duration * 1000)));
+            SubtitleManager::HideSubtitle();*/
         }
     }
 };
 
 #include "SocketManager.cpp"
-#include "InworldEventSink.cpp"
 
 static class EventWatcher {
     inline static vector<string> lines;
+    inline static vector<string> topics;
     static bool contains(string line) { return std::find(lines.begin(), lines.end(), line) != lines.end(); }
+    static bool containsTopic(string topic) { return std::find(topics.begin(), topics.end(), topic) != topics.end(); }
 
     static bool isDialogueMenuActive() { 
         RE::MenuTopicManager* topicManager = RE::MenuTopicManager::GetSingleton();
@@ -214,6 +307,8 @@ public:
         inline static REL::Relocation<ProcessMessage_t> _ProcessMessage;
 
         void ProcessTopic(RE::MenuTopicManager* topicManager, RE::Actor* speaker) {
+            Util::writeInworldLog("Processing dialogue menu with " + Util::GetActorName(speaker), 4);
+
             if (topicManager->lastSelectedDialogue != nullptr) {
                 RE::BSSimpleList<RE::DialogueResponse*> responses = topicManager->lastSelectedDialogue->responses;
 
@@ -226,19 +321,35 @@ public:
                 string playerEventText = string(RE::PlayerCharacter::GetSingleton()->GetName()) + " said \"" +
                                    string(topicManager->lastSelectedDialogue->topicText.c_str()) + "\".";
                 
+                if (!contains(playerEventText)) {
+                    string actorsStr = "";
+                    for (RE::Actor* actor : actors) {
+                        SocketManager::getInstance().SendLogEvent(actor, playerEventText);
+                        actorsStr += Util::GetActorName(actor) + ", ";
+                    }
+                    if (actorsStr.length() > 0) actorsStr = actorsStr.substr(0, actorsStr.length() - 2);
+                    Util::writeInworldLog("Sending player event text == " + playerEventText + " == to [" + actorsStr + "] ==",
+                                    4);
 
-                 for (RE::Actor* actor : actors) {
-                    if (actor->GetName() == speaker->GetName()) {
-                        characterEventText = "You said \"" + string(fullResponse) + "\".";
-                    } else {
-                        characterEventText = string(speaker->GetName()) + " said \"" + string(fullResponse) + "\".";
-                    } 
-
-                    SocketManager::getInstance().SendLogEvent(actor, playerEventText);
-                    SocketManager::getInstance().SendLogEvent(actor, characterEventText);
+                    lines.push_back(playerEventText);
                 }
 
                 if (!contains(fullResponse)) {
+                    string actorsStr = "";
+                    for (RE::Actor* actor : actors) {
+                        if (Util::GetActorName(actor) == Util::GetActorName(speaker)) {
+                            characterEventText = "You said \"" + string(fullResponse) + "\".";
+                        } else {
+                            characterEventText =
+                                string(Util::GetActorName(speaker)) + " said \"" + string(fullResponse) + "\".";
+                        }
+
+                        SocketManager::getInstance().SendLogEvent(actor, characterEventText);
+                        actorsStr += Util::GetActorName(actor) + ", ";
+                    }
+                    if (actorsStr.length() > 0) actorsStr = actorsStr.substr(0, actorsStr.length() - 2);
+                    Util::writeInworldLog(
+                        "Sending character event text == " + playerEventText + " == to [" + actorsStr + "]", 4);
                     lines.push_back(fullResponse);
                 }
             }
@@ -249,6 +360,9 @@ public:
             RE::Actor* speaker = static_cast<RE::Actor*>(topicManager->speaker.get().get());
 
             switch (a_message.type.get()) {
+                case RE::UI_MESSAGE_TYPE::kUserEvent: {
+                    ProcessTopic(topicManager, speaker);
+                } break;
                 case RE::UI_MESSAGE_TYPE::kShow: {
                     ProcessTopic(topicManager, speaker);
                 } break;
@@ -263,29 +377,43 @@ public:
 
     inline static set<RE::Actor*> actors;
 
-    static void WatchSubtitles() {
-        if (isDialogueMenuActive()) return;
+    static void SendSubtitle(RE::Actor* speaker, string subtitle) {
+        if (subtitle.length() == 0) return;
 
-        for (RE::SubtitleInfo subtitle : RE::SubtitleManager::GetSingleton()->subtitles) {
-            if (!contains(subtitle.subtitle.c_str()) && string(subtitle.subtitle.c_str()).find("...")  == std::string::npos) {
-                for (RE::Actor* actor : actors) {
-                    try {
-                        string eventText = "";
-                        if (actor->GetName() == subtitle.speaker.get().get()->GetName()) {
-                            eventText = "You said \"" + string(subtitle.subtitle.c_str()) + "\".";
-                        } else {
-                        eventText = string(subtitle.speaker.get().get()->GetName()) + " said \"" +
-                                    string(subtitle.subtitle.c_str()) + "\".";
-                        }
-                        SocketManager::getInstance().SendLogEvent(actor, eventText);
-                    } catch (...) {
-                    }
-                }
-                lines.push_back(subtitle.subtitle.c_str());
+        string actorsStr = "";
+        for (RE::Actor* actor : actors) {
+            string eventText = "";
+            if (Util::GetActorName(actor) == Util::GetActorName(speaker)) {
+                eventText = "You said \"" + string(subtitle) + "\".";
+            } else {
+                eventText = string(Util::GetActorName(speaker)) +
+                            " said \"" + subtitle + "\".";
             }
+            SocketManager::getInstance().SendLogEvent(actor, eventText);
+            actorsStr += Util::GetActorName(actor) + ", ";
+        }
+        if (actorsStr.length() > 0) actorsStr = actorsStr.substr(0, actorsStr.length() - 2);
+        Util::writeInworldLog(
+            "Sending subtitle == " + subtitle + " == [" + actorsStr + "]", 4);
+    }
+
+    static void WatchSubtitles() {
+        try {
+            for (RE::SubtitleInfo subtitle : RE::SubtitleManager::GetSingleton()->subtitles) {
+                if (!contains(subtitle.subtitle.c_str())) {
+                    SendSubtitle(static_cast<RE::Actor*>(subtitle.speaker.get().get()), subtitle.subtitle.c_str());
+                    lines.push_back(subtitle.subtitle.c_str());
+                }
+            }
+        } catch (const exception& e) {
+            Util::writeInworldLog("Exception during ==WatchSubtitles==: " + string(e.what()));
+        } catch (...) {
+            Util::writeInworldLog("Unknown exception during ==WatchSubtitles==.", 1);
         }
     }
 };
+
+#include "InworldEventSink.cpp"
 
 class ModPort {
 public:
@@ -293,7 +421,18 @@ public:
         if (!target) {
             return false;
         }
+
         SocketManager::getInstance().connectTo(target, currentDateTime);
+
+        return true;
+    }
+
+    static bool Stop(RE::StaticFunctionTag*) {
+        SocketManager::getInstance().SendStopSignal();
+
+        InworldCaller::Stop();
+        InworldEventSink::GetSingleton()->conversationPair = nullptr;
+
 
         return true;
     }
@@ -313,8 +452,14 @@ public:
             return false;
         }
 
-        SocketManager::getInstance().SendN2NStartSignal(InworldCaller::N2N_SourceActor,
-           InworldCaller::N2N_TargetActor, currentDateTime);
+        SocketManager::getInstance().SendN2NStartSignal(InworldCaller::N2N_SourceActor, InworldCaller::N2N_TargetActor,
+                                                        currentDateTime);
+
+        return true;
+    }
+
+    static bool N2N_Stop(RE::StaticFunctionTag*) {
+        SocketManager::getInstance().SendN2NStopSignal();
 
         return true;
     }
@@ -346,6 +491,12 @@ public:
 
         return true;
     }
+
+    static bool SendResponseLog(RE::StaticFunctionTag*, RE::Actor* actor, string message) {
+        EventWatcher::SendSubtitle(actor, message);
+
+        return true;
+    }
 };
 
 void OnMessage(SKSE::MessagingInterface::Message* message) {
@@ -355,22 +506,17 @@ void OnMessage(SKSE::MessagingInterface::Message* message) {
     }
 }
 
-void writeInworldLog(const std::string& message) {
-    std::ofstream logFile("InworldSkyrim.txt", std::ios::app);
-    if (logFile.is_open()) {
-        logFile << message << std::endl;
-        logFile.close();
-    }
-}
-
 bool RegisterPapyrusFunctions(RE::BSScript::IVirtualMachine* vm) {
     vm->RegisterFunction("Start", "InworldSKSE", &ModPort::Start);
+    vm->RegisterFunction("Stop", "InworldSKSE", &ModPort::Stop);
     vm->RegisterFunction("N2N_Initiate", "InworldSKSE", &ModPort::N2N_Initiate);
     vm->RegisterFunction("N2N_Start", "InworldSKSE", &ModPort::N2N_Start);
+    vm->RegisterFunction("N2N_Stop", "InworldSKSE", &ModPort::N2N_Stop);
     vm->RegisterFunction("LogEvent", "InworldSKSE", &ModPort::LogEvent);
     vm->RegisterFunction("WatchSubtitles", "InworldSKSE", &ModPort::WatchSubtitles);
     vm->RegisterFunction("ClearActors", "InworldSKSE", &ModPort::ClearActors);
     vm->RegisterFunction("SendActor", "InworldSKSE", &ModPort::SendActor);
+    vm->RegisterFunction("SendResponseLog", "InworldSKSE", &ModPort::SendResponseLog);
 
     return true;
 }
@@ -380,7 +526,7 @@ bool RegisterPapyrusFunctions(RE::BSScript::IVirtualMachine* vm) {
 void StartAudioBus() {
     auto mainPath = std::filesystem::current_path();
     auto clientPath = mainPath / "Inworld" / "Audio" / "AudioBloc.exe";
-    writeInworldLog("Opening: " + clientPath.string());
+    Util::writeInworldLog("Opening: " + clientPath.string(), 4);
     LPCWSTR exePath = clientPath.c_str();
     HINSTANCE result = ShellExecute(NULL, L"open", exePath, NULL, clientPath.parent_path().c_str(), SW_SHOWNORMAL);
 }
@@ -388,10 +534,37 @@ void StartAudioBus() {
 void StartClient() {
     auto mainPath = std::filesystem::current_path();
     auto clientPath = mainPath / "Inworld" / "SkyrimClient.exe";
-    writeInworldLog("Opening: " + clientPath.string());
+    Util::writeInworldLog("Opening: " + clientPath.string(), 4);
     LPCWSTR exePath = clientPath.c_str();
     HINSTANCE result = ShellExecute(NULL, L"open", exePath, NULL, clientPath.parent_path().c_str(), SW_SHOWNORMAL);
     StartAudioBus();
+}
+
+int GetDebugLevel() {
+    try {
+        auto mainPath = std::filesystem::current_path();
+        auto clientPath = mainPath / "Inworld" / ".env";
+        std::ifstream envFile(clientPath);  // Open the environment file for reading
+        std::string line;
+        int logLevel = -1;                       // Default value if CLIENT_PORT is not found
+        while (std::getline(envFile, line)) {             // Read each line in the file
+            if (line.contains("LOG_LEVEL")) {           // Check if the line contains the desired variable
+                std::size_t pos = line.find("=");         // find position of equals sign
+                std::string level = line.substr(pos + 1);  // extract substring after equals sign
+                logLevel = std::stoi(level);             // Convert the value to an int
+                break;                                    // Stop reading the file once the variable is found
+            }
+        }
+        envFile.close();  // Close the file
+        if (logLevel == -1) {
+            throw new exception();
+        }
+        Util::writeInworldLog("LOG_LEVEL is set to " + std::to_string(logLevel), 3);
+        return logLevel;
+    } catch (...) {
+        Util::writeInworldLog("LOG_LEVEL can't be read from .env file, assigning default value (3: INFO).", 2);
+        return 3;
+    }
 }
 
 #include "Hooks.h"
@@ -400,6 +573,9 @@ SKSEPluginLoad(const SKSE::LoadInterface* skse) {
     SKSE::Init(skse);
     
     StartClient();
+
+    Util::writeInworldLog("Plugin loaded. Initializing components.", 3);
+    Util::LOG_LEVEL = GetDebugLevel();
 
     auto* eventSink = InworldEventSink::GetSingleton();
 
@@ -421,7 +597,8 @@ SKSEPluginLoad(const SKSE::LoadInterface* skse) {
     EventWatcher::DialogueMenuEx::_ProcessMessage =
         vTable_dm.write_vfunc(0x4, &EventWatcher::DialogueMenuEx::ProcessMessage_Hook);
 
-    //Inworld::UpdatePCHook::Install();
+    Inworld::UpdatePCHook::Install();
+    Util::GetSettings();
 
     return true;
 }

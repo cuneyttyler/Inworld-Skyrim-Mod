@@ -2,7 +2,7 @@
 import {InworldClient, InworldConnectionService} from '@inworld/nodejs-sdk';
 import InworldWorkspaceManager from './InworldWorkspaceManager.js';
 import {BLCRecorder} from './Audio/BLCRecorder.js';
-import {SkyrimInworldSocketController,GetSocketResponse} from './SkyrimInworldSocketController.js';
+import {SkyrimInworldController,GetPayload} from './SkyrimInworldController.js';
 import {logToErrorLog} from '../SkyrimClient.js'
 import * as fs from 'fs';
 import waitSync from 'wait-sync'
@@ -20,14 +20,14 @@ export default class InworldClientManager {
     private IsConnected : boolean;
     private workspaceManager : InworldWorkspaceManager;
     private blcRecorder : BLCRecorder;
-    private socketController : SkyrimInworldSocketController;
+    private inworldController : SkyrimInworldController;
     private isVoiceConnected = false;
     private isAudioSessionStarted = false;
     private is_n2n = false;
     private speaker;
     private conversationOngoing;
     private is_ending = false;
-    private prompt;
+    private isGeneric = false;
     private genericCharacterId: string;
 
     currentCapabilities = {
@@ -57,10 +57,10 @@ export default class InworldClientManager {
     }
 
     // Socket version of connection
-    async ConnectToCharacterViaSocket(characterId : string, playerName : string, socket : WebSocket) {
+    async ConnectToCharacterViaSocket(characterId : string, speakerName : string, playerName : string, socket : WebSocket) {
         try {
             this.genericCharacterId = null;
-            this.prompt = null;
+            this.isGeneric = false;
             let id = this.workspaceManager.GetCharacterIdentifier(characterId);
             console.log(`Requested to talk with ${characterId} which corresponds to ${id} on database.`);
             (console as any).logToLog(`Requested to talk with ${characterId} which corresponds to ${id} on database.`)
@@ -71,18 +71,18 @@ export default class InworldClientManager {
             console.log("Requesting connecting to " + id);
             let scene = await this.workspaceManager.UpdateScene(!this.is_n2n ? 0 : this.speaker + 1, [id]);
             // let scene = "workspaces/" + WORKSPACE_NAME + "/characters/" + id
-            this.client.setUser({fullName: playerName});
+            this.client.setUser({fullName: speakerName});
             this.client.setScene(scene);
             this.is_ending = false;
 
-            this.socketController = new SkyrimInworldSocketController(socket);
-            this.client.setOnMessage((data : any) => this.socketController.ProcessMessage(data, this));
+            this.inworldController = new SkyrimInworldController(socket);
+            this.client.setOnMessage((data : any) => this.inworldController.ProcessMessage(data, this));
 
             this.client.setOnError((err) => {
                 if (err.code != 10 && err.code != 1)
                     logToErrorLog(JSON.stringify(err));
             });
-            let dialogueHistory = this.GetDialogueHistory(!this.prompt ? id : this.genericCharacterId);
+            let dialogueHistory = this.GetDialogueHistory(!this.isGeneric ? id : this.genericCharacterId, playerName);
             if(dialogueHistory)
                 this.client.setSessionContinuation({
                     previousDialog: dialogueHistory
@@ -94,13 +94,13 @@ export default class InworldClientManager {
                 let port = parseInt(process.env.AUDIO_PORT);
                 this.blcRecorder = new BLCRecorder("127.0.0.1", port);
                 this.blcRecorder.connect(this.connection);
-                this.socketController.SetRecorder(this.blcRecorder);
+                this.inworldController.SetRecorder(this.blcRecorder);
             }
             let characters = await this.connection.getCharacters()
             this.connection.setCurrentCharacter(characters[0])
             console.log("Starting audio session...")
             this.connection.sendAudioSessionStart();
-            let verifyConnection = GetSocketResponse("connection established", "1-1", "established", 0, this.is_n2n, this.speaker);
+            let verifyConnection = GetPayload("connection established", "established", 0, this.is_n2n, this.speaker);
             console.log("Connection to " + id + " is succesfull" + JSON.stringify(verifyConnection));
             (console as any).logToLog(`Connection to ${id} is succesfull.`)
             this.isAudioSessionStarted = true;
@@ -110,9 +110,9 @@ export default class InworldClientManager {
             return true
         } catch(err) {
             if(characterId.includes("GenericMale") || characterId.includes("GenericFemale")) {
-                console.error("ERROR during connecting " + playerName + " -> " + characterId)
+                console.error("ERROR during connecting " + speakerName + " -> " + characterId)
                 console.error(err);
-                let returnDoesNotExist = GetSocketResponse("This soul lacks the divine blessing of conversational endowment bestowed by the gods.", "1-1", "doesntexist", 0, this.is_n2n, this.speaker);
+                let returnDoesNotExist = GetPayload("NPC is not in database.", "doesntexist", 0, this.is_n2n, this.speaker);
                 socket.send(JSON.stringify(returnDoesNotExist));
                 return false;
             }
@@ -121,9 +121,9 @@ export default class InworldClientManager {
 
             let character = this.workspaceManager.GetGenericCharacter(characterId.toLowerCase());
             if(character == null) {
-                console.error("ERROR during connecting " + playerName + " -> " + characterId + ". Generic NPC doesn't exist.")
+                console.error("ERROR during connecting " + speakerName + " -> " + characterId + ". Generic NPC doesn't exist.")
                 console.error(err);
-                let returnDoesNotExist = GetSocketResponse("This soul lacks the divine blessing of conversational endowment bestowed by the gods.", "1-1", "doesntexist", 0, this.is_n2n, this.speaker);
+                let returnDoesNotExist = GetPayload("NPC is not in database.", "doesntexist", 0, this.is_n2n, this.speaker);
                 socket.send(JSON.stringify(returnDoesNotExist));
                 return false;
             }
@@ -144,18 +144,14 @@ export default class InworldClientManager {
             }
             
             this.genericCharacterId = characterId.toLowerCase();
-            this.prompt = "This is your character information, speak accordingly:" + JSON.stringify(character);
-            await this.ConnectToCharacterViaSocket(genericCharacterId, playerName, socket);
+            this.isGeneric = true;
+            await this.ConnectToCharacterViaSocket(genericCharacterId, speakerName, playerName, socket);
+            setTimeout(() => {
+                let prompt = this.workspaceManager.PreparePrompt(character);
+                this.SendNarratedAction(prompt);
+            }, 2000)
             return true;
         }
-    }
-
-    Init(initMessage: string) {
-        if(this.prompt) {
-            console.log("Sending prompt.");
-            this.SendNarratedAction(this.prompt);
-        }
-        this.SendNarratedAction(initMessage);
     }
 
     Stop() {
@@ -166,10 +162,17 @@ export default class InworldClientManager {
         return this.is_ending;
     }
 
-    GetDialogueHistory(id) {
+    GetDialogueHistory(id, profile) {
         try {
             id = id.toLowerCase();
-            let fileName = './Conversations/' + id + '.json'
+            let profileFolder = './Profiles/' + profile;
+            if(!fs.existsSync(profileFolder)) { 
+                fs.mkdirSync(profileFolder); 
+            }
+            if(!fs.existsSync(profileFolder + '/Conversations')) {
+                fs.mkdirSync(profileFolder + '/Conversations'); 
+            }
+            let fileName = profileFolder + '/Conversations/' + id + '.json'
             if(!fs.existsSync(fileName)) return
             let data = fs.readFileSync(fileName, 'utf8')
             return JSON.parse(data)
@@ -183,17 +186,17 @@ export default class InworldClientManager {
         this.workspaceManager.UpdateScene(!this.is_n2n ? 0 : 1, [])
     }
 
-    async SaveDialogueHistory(id, history) {
+    async SaveDialogueHistory(id, history, profile) {
         try {
             id = id.toLowerCase();
-            let previousHistory = this.GetDialogueHistory(id)
+            let previousHistory = this.GetDialogueHistory(id, profile)
             let newHistory = null;
             if(previousHistory) {
                 newHistory = previousHistory.concat(history)
             } else {
                 newHistory = history;
             }
-            let fileName = './Conversations/' + id + '.json'
+            let fileName = './Profiles/' + profile + '/Conversations/' + id + '.json'
 
             if(fs.existsSync(fileName)) {
                 fs.unlinkSync(fileName)
@@ -221,7 +224,9 @@ export default class InworldClientManager {
     }
 
     SendEndSignal() {
-        this.socketController.SendEndSignal(this.is_n2n)
+        if(this.inworldController) {
+            this.inworldController.SendEndSignal(this.is_n2n)
+        }
     }
 
     async StartTalking() {
@@ -237,7 +242,7 @@ export default class InworldClientManager {
             await this.blcRecorder.stop();
             await this.connection.sendAudioSessionEnd();
             this.isAudioSessionStarted = false;
-            this.socketController.SendUserVoiceInput();
+            this.inworldController.SendUserVoiceInput();
         }, 500)
     }
 

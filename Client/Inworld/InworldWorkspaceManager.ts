@@ -260,16 +260,63 @@ export default class InworldWorkspaceManager {
         return;
     }
 
+    async ClearGenericKnowledge(id, type: number) {
+        let name = type == 0 ? "Generic Knowledge 1" : type == 1 ? "Generic Knowledge 2" : "Generic Knowledge 3"
+        let character = this.GetCharacter(id);
+        let newKnowledge = []
+        for(let i in character.commonKnowledge) {
+            if(character.commonKnowledge[i].displayName != name) {
+                newKnowledge.push(character.commonKnowledge[i])
+            }
+        }
+
+        const headers = await this.GetHeader();
+        const payload = {name: character.name, commonKnowledge: newKnowledge};
+        await axios.patch("https://studio.inworld.ai/studio/v1/workspaces/" + WORKSPACE_NAME + '/characters/' + character.name, JSON.stringify(payload), {headers: headers});
+    }
+
+    async SetupGenericKnowledge(type: number, id: string, prompt: Array<string>) {
+        let name = type == 0 ? "Generic Knowledge 1" : type == 1 ? "Generic Knowledge 2" : "Generic Knowledge 3"
+        let knowledge = {displayName: name, description: "You are a character who lives in Skyrim.", memoryRecords: prompt}
+        knowledge = await this.CreateNewCommonKnowledge(knowledge)
+        let character = this.GetCharacter(id);
+        character.commonKnowledge.push(knowledge);
+
+        const headers = await this.GetHeader();
+        const payload = {name: character.name, commonKnowledge: character.commonKnowledge};
+        await axios.patch("https://studio.inworld.ai/studio/v1/workspaces/" + WORKSPACE_NAME + '/characters/' + character.name, JSON.stringify(payload), {headers: headers});
+    }
+
     async CreateNewCommonKnowledge(commonKnowledge) {
         let normalizedUri = SHARED_KNOWLEDGE_URL.replace("?pageSize=500", "");
         let header = await this.GetHeader(true);
-        await axios.post(normalizedUri, commonKnowledge, {headers: header});
+        let response = await axios.post(normalizedUri, commonKnowledge, {headers: header});
+        return response.data
     }
 
     async GetAllCurrentCommonKnowledges() {
         let header = await this.GetHeader(true);
         let response = await axios.get(SHARED_KNOWLEDGE_URL, {headers: header});
         return response.data;
+    }
+
+    GetCharacter(name: string) {
+        try {
+            if (name.toLowerCase().includes("guard")) 
+                name = "guard";
+            for (let i = 0; i < this.characterList.length; i++) {
+                let character = this.characterList[i];
+                let nameNormalized = character.name.toLowerCase().replaceAll("_", " ");
+                if (nameNormalized.includes(name.toLowerCase()) || character.defaultCharacterDescription.givenName.toLowerCase().includes(name.toLowerCase())) {
+                    let name = character.name;
+                    let id = name.replace("workspaces/" + WORKSPACE_NAME + "/characters/", "")
+                    return character;
+                }
+            }
+        } catch {
+            
+        }
+        return null;
     }
 
     GetCharacterIdentifier(name: string) {
@@ -289,6 +336,40 @@ export default class InworldWorkspaceManager {
             
         }
         return null;
+    }
+
+    PreparePrompt(character) {
+        if(character.facts.length > 0) {
+            for(let i in character.facts[0].text) {
+                character.facts[0].text[i] = character.facts[0].text[i].replace("{Character}", character.defaultCharacterDescription.givenName);
+            }
+        }
+
+        let prompt = "PLEASE ACT AS CHARACTER DESCRIBED BELOW:"
+            + "You are " + character.defaultCharacterDescription.givenName + ".\n" 
+            + "You are " + character.defaultCharacterDescription.characterRole + "\n"
+            + character.defaultCharacterDescription.description + "\n"
+            + character.defaultCharacterDescription.motivation + "\n"
+            + character.defaultCharacterDescription.flaws + "\n"
+            + "This is how you talk: \"" + character.defaultCharacterDescription.exampleDialog + "\"" + "\n"
+            + "You are " + character.defaultCharacterDescription.personalityAdjectives.join(', ') + "\n"
+            + "You are at " + character.defaultCharacterDescription.lifeStage + " of your life." + "\n"
+            + "These are your hobbies " + character.defaultCharacterDescription.hobbyOrInterests.join(', ') + "\n"
+            + "These are some additional facts about you: " + character.facts.join(", ") + "\n"
+            + "These values describe your mood(ranged between -100 and 100): {" + "\n"
+            + "Joy: " + character.initialMood.joy + "\n"
+            + "Fear: " + character.initialMood.fear + "\n"
+            + "Trust: " + character.initialMood.trust + "\n"
+            + "Surprise: " + character.initialMood.surprise + "\n"
+            + "\n" + "\n"
+            + "These values describe your personality(ranged between -100 and 100): {"  + "\n"
+            + "Positive: " + character.personality.positive + "\n"
+            + "Peaceful: " + character.personality.peaceful + "\n"
+            + "Open: " + character.personality.open + "\n"
+            + "Extravert: " + character.personality.extravert + "\n"
+            + "}"
+
+        return prompt;
     }
 
     GetGenericCharacter(name) {

@@ -14,23 +14,6 @@ using websocketpp::lib::bind;
 using websocketpp::lib::placeholders::_1;
 using websocketpp::lib::placeholders::_2;
 
-static class Util {
-public:
-    static const char* GetActorName(RE::Actor* actor) {
-        if (auto xTextData = actor->extraList.GetByType<RE::ExtraTextDisplayData>(); xTextData) {
-            return actor->GetDisplayFullName();
-        }
-
-        if (auto actorBase = actor->GetActorBase(); actorBase) {
-            if (actorBase->shortName.size() > 0) {
-                return actorBase->shortName.c_str();
-            }
-        }
-
-        return actor->GetName();
-    }
-};
-
 class Message {
 public:
     Message(const string& type, const string& message, const string& id, const string& playerName = "",
@@ -67,12 +50,13 @@ private:
 
 class N2NMessage {
 public:
-    N2NMessage(const string& type, const string& message, const string& source, const string& target, int speaker,
+    N2NMessage(const string& type, const string& message, const string& source, const string& target, const string& playerName, int speaker,
                const string& location, const string& currentDateTime = "")
         : type(type),
           message(message),
           source(source),
           target(target),
+          playerName(playerName),
           speaker(speaker),
           location(location),
           currentDateTime(currentDateTime) {}
@@ -82,7 +66,8 @@ public:
                 {"message", message}, 
                 {"is_n2n", true},      
                 {"source", source},     
-                {"target", target},           
+                {"target", target},    
+                {"playerName", playerName},
                 {"speaker", speaker},
                 {"location", location},
                 {"currentDateTime", currentDateTime}};
@@ -93,6 +78,7 @@ private:
     string message;
     string source;
     string target;
+    string playerName;
     int speaker;
     string location;
     string currentDateTime;
@@ -124,11 +110,14 @@ public:
 
             this->start_connection();
         } catch (const std::exception& e) {
-            std::cout << e.what() << std::endl;
+            Util::writeInworldLog("Exception during socket connection: " + string(e.what()), 1);
+            InworldCaller::Reset();
         } catch (websocketpp::lib::error_code e) {
-            std::cout << e.message() << std::endl;
+            Util::writeInworldLog("Exception during socket connection.", 1);
+            InworldCaller::Reset();
         } catch (...) {
-            std::cout << "other exception" << std::endl;
+            Util::writeInworldLog("Unknown exception during socket connection.", 1);
+            InworldCaller::Reset();
         }
     }
 
@@ -138,21 +127,26 @@ public:
     }
 
     int getClientPort() {
-        auto mainPath = std::filesystem::current_path();
-        auto clientPath = mainPath / "Inworld" / ".env";
-        std::ifstream envFile(clientPath);  // Open the environment file for reading
-        std::string line;
-        int clientPort = 3000;  // Default value if CLIENT_PORT is not found
-        while (std::getline(envFile, line)) {                         // Read each line in the file
-            if (line.contains("CLIENT_PORT")) {     // Check if the line contains the desired variable
-                std::size_t pos = line.find("=");                     // find position of equals sign
-                std::string port = line.substr(pos + 1);  // extract substring after equals sign
-                clientPort = std::stoi(port);                         // Convert the value to an int
-                break;  // Stop reading the file once the variable is found
+        try {
+            auto mainPath = std::filesystem::current_path();
+            auto clientPath = mainPath / "Inworld" / ".env";
+            std::ifstream envFile(clientPath);  // Open the environment file for reading
+            std::string line;
+            int clientPort = 3000;                            // Default value if CLIENT_PORT is not found
+            while (std::getline(envFile, line)) {             // Read each line in the file
+                if (line.contains("CLIENT_PORT")) {           // Check if the line contains the desired variable
+                    std::size_t pos = line.find("=");         // find position of equals sign
+                    std::string port = line.substr(pos + 1);  // extract substring after equals sign
+                    clientPort = std::stoi(port);             // Convert the value to an int
+                    break;                                    // Stop reading the file once the variable is found
+                }
             }
+            envFile.close();  // Close the file
+            return clientPort;
+        } catch (...) {
+            Util::writeInworldLog("PORT can't be read from .env file, assigning default value (3030).", 2);
+            return 3030;
         }
-        envFile.close();  // Close the file
-        return clientPort;
     }
 
     void start_connection() {
@@ -171,7 +165,8 @@ public:
             json messageJson = message->toJson();
             std::string message_str = messageJson.dump();
             c.send(con->get_handle(), message_str, websocketpp::frame::opcode::text);
-        } catch (...) {
+        } catch (const exception& e) {
+            Util::writeInworldLog("Exception during send_message: " + string(e.what()), 1);
         }
     }
 
@@ -180,7 +175,8 @@ public:
             json messageJson = message->toJson();
             std::string message_str = messageJson.dump();
             c.send(con->get_handle(), message_str, websocketpp::frame::opcode::text);
-        } catch (...) {
+        } catch (const exception& e) {
+            Util::writeInworldLog("Exception during send_message_n2n: " + string(e.what()), 1);
         }
     }
 
@@ -189,7 +185,6 @@ public:
             json j = json::parse(msg->get_payload());
 
             std::string message = j["message"];
-            std::string phoneme = j["phoneme"];
             std::string type = j["type"];
             bool is_n2n = j["is_n2n"];
             int speaker = j["speaker"];
@@ -213,17 +208,23 @@ public:
             } else if (type == "end" && is_n2n) {
                 InworldCaller::N2N_Stop();
             } else if (type == "doesntexist" && !is_n2n) {
+                Util::writeInworldLog("NPC doesn't exist in database == " +
+                                Util::GetActorName(InworldCaller::conversationActor) + " ==.", 4);
                 InworldCaller::ShowReplyMessage(message);
                 InworldCaller::conversationActor = nullptr;
                 InworldCaller::connecting = false;
             } else if (type == "doesntexist" && is_n2n) {
+                Util::writeInworldLog(
+                    "NPC doesn't exist in database == " + Util::GetActorName(InworldCaller::N2N_SourceActor) + ", " +
+                    Util::GetActorName(InworldCaller::N2N_TargetActor) + " ==.", 4);
                 InworldCaller::ShowReplyMessage(message);
                 InworldCaller::N2N_SourceActor = nullptr;
                 InworldCaller::N2N_TargetActor = nullptr;
             }
         } 
-        catch (...) 
+        catch (const exception& e) 
         {
+            Util::writeInworldLog("Exception on on_message: " + string(e.what()), 1);
         }
     }
 };
@@ -261,11 +262,11 @@ public:
         soc->send_message(messageObj);
     }
 
-    void SendStopSignal(RE::Actor* conversationActor) {
+    void SendStopSignal() {
+        Util::writeInworldLog("Sending STOP signal.", 4);
         ValidateSocket();
-        auto id = conversationActor->GetName();
-        if (id == nullptr || id == "") return;
-        Message* message = new Message("stop", "stop", id);
+        auto playerName = RE::PlayerCharacter::GetSingleton()->GetName();
+        Message* message = new Message("stop", "stop", "", playerName);
         soc->send_message(message);
     }
 
@@ -273,21 +274,28 @@ public:
         try {
             ValidateSocket();
             auto id = Util::GetActorName(actor);
-            if (id == nullptr || id == "") return;
-            Message* message = new Message("log_event", log, id);
+            auto playerName = RE::PlayerCharacter::GetSingleton()->GetName();
+            if (id == "") return;
+            Message* message = new Message("log_event", log, id, playerName);
             soc->send_message(message);
-        } catch (...) {
+        } catch (const exception& e) {
+            Util::writeInworldLog("Exception on SendLogEvent: " + string(e.what()), 1);
         }
     }
 
     void SendN2NStartSignal(RE::Actor* source, RE::Actor* target, string currentDateTime) {
-        N2NMessage* message = new N2NMessage("start", "", source->GetName(), target->GetName(), 0,
+        Util::writeInworldLog(
+            "Sending N2N Start Signal == " + Util::GetActorName(source) + ", " + Util::GetActorName(target) + " ==", 4);
+        auto playerName = RE::PlayerCharacter::GetSingleton()->GetName();
+        N2NMessage* message = new N2NMessage("start", "", source->GetName(), target->GetName(), playerName, 0,
                            source->GetCurrentLocation()->GetName(), currentDateTime);
         soc->send_message_n2n(message);
     }
 
     void SendN2NStopSignal() {
-        N2NMessage* message = new N2NMessage("stop", "", "", "", 0, "");
+        Util::writeInworldLog("Sending N2N STOP Signal.", 4);
+        auto playerName = RE::PlayerCharacter::GetSingleton()->GetName();
+        N2NMessage* message = new N2NMessage("stop", "", "", "", playerName, 0, "");
         soc->send_message_n2n(message);
     }
 
@@ -311,8 +319,8 @@ public:
             else
                 message = new Message("stop_listen", "stop", lastConnected);
             soc->send_message(message);
-        } catch (...) {
-            // Ignore
+        } catch (const exception& e) {
+            Util::writeInworldLog("Exception on controlVoiceInput: " + string(e.what()), 1);
         }
     }
 
@@ -322,6 +330,7 @@ public:
         auto location = conversationActor->GetCurrentLocation()->GetName();
         auto playerName = RE::PlayerCharacter::GetSingleton()->GetName();
         if (id == nullptr || id == "") return;
+        Util::writeInworldLog("Connecting to " + Util::GetActorName(conversationActor) + ".", 4);
         InworldCaller::conversationActor = conversationActor;
         lastConnected = id;
         Message* message = new Message("connect", "connect request..", id, playerName, location, currentDateTime);
@@ -333,9 +342,11 @@ public:
         auto source_id = sourceActor->GetName();
         auto target_id = targetActor->GetName();
         if (source_id == nullptr || source_id == "" || target_id == nullptr || target_id == "") return;
+        Util::writeInworldLog("Connecting(N2N) to " + string(source_id) + " and " + string(target_id) + ".", 4);
         InworldCaller::N2N_SourceActor = sourceActor;
         InworldCaller::N2N_TargetActor = targetActor;
-        N2NMessage* message = new N2NMessage("connect", "connect", source_id, target_id, 0,"");
+        auto playerName = RE::PlayerCharacter::GetSingleton()->GetName();
+        N2NMessage* message = new N2NMessage("connect", "connect", source_id, target_id, playerName, 0,"");
         soc->send_message_n2n(message);
     }
 };

@@ -9,19 +9,20 @@ referencealias property target_n2n auto
 package property InworldTravelToNpcLocationPackage auto
 package property InworldStandPackage auto
 package property InworldN2NStandPackage auto
-formlist property _InworldVoiceTypes auto
+formlist property _InworldRaceList auto
 GlobalVariable property ConversationOnGoing auto
 GlobalVariable property N2N_ConversationOnGoing auto
 GlobalVariable property N2N_LastSuccessfulStart auto
 faction property CurrentFollowerFaction auto
 faction property PotentialFollowerFaction auto
+quest property DialogueFollower auto
 ; quest property InworldDialogueQuest auto
 
 function OnInit()
     self.RegisterForModEvent("BLC_Start", "_Start")
     self.RegisterForModEvent("BLC_Stop", "_Stop")
 	self.RegisterForModEvent("BLC_Speak", "Speak")
-    self.RegisterForModEvent("BLC_Follow_Request_Accepted", "Add_To_Followers")
+    self.RegisterForModEvent("BLC_Follow_Request_Accepted", "AddToFollowers")
     self.RegisterForModEvent("BLC_Start_N2N", "Start_N2N")
     self.RegisterForModEvent("BLC_Start_N2N_Source", "Start_N2N_Source")
     self.RegisterForModEvent("BLC_Start_N2N_Target", "Start_N2N_Target")
@@ -29,6 +30,7 @@ function OnInit()
     self.RegisterForModEvent("BLC_Speak_N2N", "Speak_N2N")
     self.RegisterForModEvent("BLC_TravelToNPCLocation", "TravelToNPCLocation")
     self.RegisterForModEvent("BLC_SetHoldPosition", "SetHoldPosition")
+    self.RegisterForModEvent("BLC_SendResponseLog", "SendResponseLog")
 endFunction
 
 function SetHoldPosition(String eventName, String strArg, Float numArg, Form sender)
@@ -65,11 +67,23 @@ function SetHoldPosition(String eventName, String strArg, Float numArg, Form sen
 endFunction
 
 function Reset()
+    Reset_Normal()
+    Reset_N2N()
+endFunction
+
+function Reset_Normal()
     Debug.Trace("Inworld: Reset.")
     target.Clear()
+    ConversationOnGoing.SetValueInt(0)
+    InworldSKSE.Stop()
+endFunction
+
+function Reset_N2N()
+    Debug.Trace("Inworld: Reset_N2N.")
     source_n2n.Clear()
     target_n2n.Clear()
     N2N_ConversationOnGoing.SetValueInt(0)
+    InworldSKSE.N2N_Stop()
 endFunction
 
 function TravelToNPCLocation(String eventName, String strArg, Float numArg, Form sender)
@@ -78,9 +92,17 @@ function TravelToNPCLocation(String eventName, String strArg, Float numArg, Form
 endFunction
 
 function _Start(String eventName, String strArg, Float numArg, Form sender) 
-    If (sender as Actor) == None || (sender as Actor) == source_n2n.GetActorRef() || (sender as Actor) == target_n2n.GetActorRef()
+    If (sender as Actor) == None
         debug.Trace("Inworld: Actor is currently engaged in converation with another NPC.")
         return;
+    EndIf
+    If (sender as Actor) == source_n2n.GetActorRef() || (sender as Actor) == target_n2n.GetActorRef()
+        debug.Notification("NPC is busy.")
+        return;
+    EndIf
+    If !IsAvailableForDialogue(sender as Actor)
+        Debug.Notification("NPC is not in available for dialogue.")
+        return
     EndIf
     debug.Trace("Inworld: Start Dialogue")
     ConversationOnGoing.SetValueInt(1)
@@ -97,6 +119,7 @@ endFunction
 
 function Speak(String eventName, String strArg, Float numArg, Form sender) 
     If sender == None
+        debug.Trace("Inworld: Speak request == Actor NULL, returning.")
         Return
     EndIf
     debug.Trace("Inworld: Speak request for " + (sender as Actor).GetDisplayName())
@@ -123,6 +146,7 @@ endFunction
 
 function Stop_N2N(String eventName, String strArg, Float numArg, Form sender)
     Debug.Trace("Inworld: Stopping N2N Dialogue.")
+    Utility.Wait(3) ; Wait for last line to be spoken
     N2N_ConversationOnGoing.SetValue(0)
     source_n2n.Clear()
     target_n2n.Clear()
@@ -137,14 +161,21 @@ function Speak_N2N(String eventName, String strArg, Float numArg, Form sender)
     EndIf
 endFunction
 
-function Add_To_Followers(String eventName, String strArg, Float numArg, Form sender)
+function SendResponseLog(String eventName, String strArg, Float numArg, Form sender)
+    InworldSKSE.SendResponseLog(sender as Actor, strArg)
+endfunction
+
+function AddToFollowers(String eventName, String strArg, Float numArg, Form sender)
     Actor _actor = sender as Actor
 
     _actor.AddtoFaction(CurrentFollowerFaction)
     _actor.AddToFaction(PotentialFollowerFaction)
-    ; TO-DO
+    (DialogueFollower as DialogueFollowerScript).SetFollower(_actor)
+    (DialogueFollower as DialogueFollowerScript).FollowerFollow()
+
+    Debug.Notification(_actor.GetDisplayName() + " is now following you.")
 endFunction
 
 bool function IsAvailableForDialogue(Actor _actor)
-    return ((_InworldVoiceTypes.GetAt(0) as FormList).HasForm(_actor.GetVoiceType()) || (_InworldVoiceTypes.GetAt(1) as FormList).HasForm(_actor.GetVoiceType()))  && _actor.IsEnabled()&& !_actor.IsAlerted() && !_actor.IsAlarmed()  && !_actor.IsBleedingOut() && !_actor.isDead() && !_actor.IsUnconscious()
+    return _InworldRaceList.HasForm(_actor.GetRace()) && _actor.IsEnabled()&& !_actor.IsAlerted() && !_actor.IsAlarmed()  && !_actor.IsBleedingOut() && !_actor.isDead() && !_actor.IsUnconscious()
 endFunction

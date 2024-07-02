@@ -7,6 +7,7 @@ import { DialogParticipant } from '@inworld/nodejs-sdk';
 import DialogueManager from './DialogueManager.js'
 import EventBus from './EventBus.js';
 import path from "path";
+import waitSync from 'wait-sync'
 
 const resolved = path.resolve(".env");
 console.log("Reading .env from location: ", resolved);
@@ -33,6 +34,7 @@ var dialogueManager = new DialogueManager(N2N_MAX_STEP_COUNT, ClientManager_Dung
 
 var id;
 var dialogueHistory = [];
+var _profile;
 
 EventBus.GetSingleton().on('TARGET_RESPONSE', (msg) => {
     dialogueHistory.push({
@@ -42,14 +44,26 @@ EventBus.GetSingleton().on('TARGET_RESPONSE', (msg) => {
 });
 
 EventBus.GetSingleton().on('END', (msg) => {
-    ClientManager.SaveDialogueHistory(id, dialogueHistory);
+    if(!id) return;
+
+    ClientManager.SaveDialogueHistory(id, dialogueHistory, _profile);
     ClientManager.CleanupScene();
+    dialogueHistory = [];
+    _profile = null;
+    id = null;
 });
 
-function GetEventFile(id) {
+function GetEventFile(id, profile) {
     try {
         id = id.toLowerCase();
-        let fileName = './Events/' + id + '.json'
+        let profileFolder = './Profiles/' + profile;
+        if(!fs.existsSync(profileFolder)) {
+            fs.mkdirSync(profileFolder);
+        }
+        if(!fs.existsSync(profileFolder + '/Events')) {
+            fs.mkdirSync(profileFolder + '/Events');
+        }
+        let fileName = profileFolder + '/Events/' + id + '.json'
         if(!fs.existsSync(fileName)) {
             fs.writeFileSync(fileName, "", "utf8");
         }
@@ -60,15 +74,15 @@ function GetEventFile(id) {
     }
 }
 
-function GetEvents(id) {
-    let eventFile = GetEventFile(id);
+function GetEvents(id, profile) {
+    let eventFile = GetEventFile( id, profile);
     return fs.readFileSync(eventFile, 'utf8')
 }
 
-function SaveEventLog(id, log) {
+function SaveEventLog(id, log, profile) {
     try {
         id = id.toLowerCase();
-        let eventFile = GetEventFile(id);
+        let eventFile = GetEventFile(id, profile);
 
         if(!fs.existsSync(eventFile)) {
             console.error("Event file not exists: " + eventFile);
@@ -110,16 +124,18 @@ fastify.register(async function (fastify) {
                 console.log("Message received", message);
             }
             if (message.type == "connect" && !message.is_n2n) {
-                let result = await ClientManager.ConnectToCharacterViaSocket(message.id, message.playerName, connection.socket);
+                let result = await ClientManager.ConnectToCharacterViaSocket(message.id, message.playerName, message.playerName, connection.socket);
                 if(result) {
                     id = message.id;
+                    _profile = message.playerName;
                     dialogueHistory.push({
                         talker: DialogParticipant.UNKNOWN,
-                        phrase: 'In ' + message.location + ', on ' + message.currentDateTime + ', you started to talk with ' + process.env.PLAYER_NAME + '. '
+                        phrase: 'In ' + message.location + ', on ' + message.currentDateTime + ', you started to talk with ' + message.playerName + '. '
                     });
-                    ClientManager.SendNarratedAction('Please keep your answers. short.');
-                    let events = GetEvents(message.id)
+                    // ClientManager.SendNarratedAction('Please keep your answers short if possible.');
+                    let events = GetEvents(message.id, _profile)
                     if(events && events != "") {
+                        console.log("Sending event log for " + message.id);
                         ClientManager.SendNarratedAction(events);
                     }
                 }
@@ -137,26 +153,24 @@ fastify.register(async function (fastify) {
                     phrase: message.message
                 });
             } else if (message.type == "stop" && !message.is_n2n) {
-                ClientManager.SaveDialogueHistory(message.id, dialogueHistory);
-                ClientManager.CleanupScene()
-                dialogueHistory = [];
+                EventBus.GetSingleton().emit("END")
             } else if (message.type == "connect" && message.is_n2n) {
-                let result = await ClientManager_DungeonMaster.ConnectToCharacterViaSocket(message.source, "DungeonMaster", connection.socket);
-                result = result && await ClientManager_N2N_Source.ConnectToCharacterViaSocket(message.target, message.source , connection.socket);
-                result = result && await ClientManager_N2N_Target.ConnectToCharacterViaSocket(message.source, message.target , connection.socket);
+                let result = await ClientManager_DungeonMaster.ConnectToCharacterViaSocket(message.source, "DungeonMaster", message.playerName, connection.socket);
+                result = result && await ClientManager_N2N_Source.ConnectToCharacterViaSocket(message.target, message.source, message.playerName, connection.socket);
+                result = result && await ClientManager_N2N_Target.ConnectToCharacterViaSocket(message.source, message.target, message.playerName, connection.socket);
                 if(result) {
-                    let sourceEvents = GetEvents(message.source)
+                    let sourceEvents = GetEvents(message.source, message.playerName)
                     if(sourceEvents && sourceEvents != "") {
                         ClientManager_DungeonMaster.SendNarratedAction(sourceEvents);
                         ClientManager_N2N_Target.SendNarratedAction(sourceEvents);
                     }
-                    let targetEvents = GetEvents(message.target)
+                    let targetEvents = GetEvents(message.target, message.playerName)
                     if(targetEvents && targetEvents != "") {
                         ClientManager_N2N_Source.SendNarratedAction(targetEvents);
                     }
                 }
             } else if (message.type == "start" && message.is_n2n) {
-                dialogueManager.Manage_N2N_Dialogue(message.source, message.target, message.location, message.currentDateTime)
+                dialogueManager.Manage_N2N_Dialogue(message.source, message.target, message.playerName, message.location, message.currentDateTime)
             } else if (message.type == "stop" && message.is_n2n) {
                 if(dialogueManager && dialogueManager.running()) {
                     dialogueManager.stop();
@@ -165,7 +179,7 @@ fastify.register(async function (fastify) {
                     ClientManager_N2N_Target.CleanupScene()
                 }
             } else if (message.type == "log_event") {
-                SaveEventLog(message.id, message.message + " ");
+                SaveEventLog(message.id, message.message + " ", message.playerName);
                 if(ClientManager.IsConversationOngoing()) {
                     ClientManager.SendNarratedAction(message.message + " ");
                 }
@@ -279,18 +293,10 @@ export function logToErrorLog(message: string): void {
 
 // setTimeout(async () => {
 //     console.log("Connecting...")
-//     let result = await ClientManager.ConnectToCharacterViaSocket("Faendal","Uriel", null)
+//     let result = await ClientManager.ConnectToCharacterViaSocket("Abelone","Uriel", null)
 //     if(result) {
 //         console.log("Successful")
-//         // ClientManager.SendNarratedAction("Hilde said \"These travellers are passing by too often these days\"")
-//         ClientManager.SendNarratedAction("Alvor said \"I heard tales of a great bow called SkyRaver.\"")
-//         ClientManager.Say("What's he talking about?")
-
-//         // let events = GetEvents("Faendal")
-//         // if(events && events != "") {
-//         //     console.log("Sending events.")
-//         //     ClientManager.SendNarratedAction(events);
-//         // }
-//         // ClientManager.Say("So you say... Love is complicated. What's the name of that girl again?")
+//         waitSync(2)
+//         ClientManager.Say("Would you like to join me?")
 //     }
 // }, 5000);

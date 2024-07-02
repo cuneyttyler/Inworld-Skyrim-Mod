@@ -57,15 +57,6 @@ Event OnBleedOut()
     EndWhile
 EndEvent
 
-Event OnGetUp(ObjectReference akFurniture)
-    Actor[] actors = GetRefsAsActors()
-    int i = 0
-    While i < 20
-        InworldSKSE.LogEvent(actors[i], CurrentTimeString() + self.GetActorRef().GetDisplayName() + " has stood up. ")
-        i += 1
-    EndWhile
-EndEvent
-
 Event OnObjectEquipped(Form akBaseObject, ObjectReference akReference)
     Actor[] actors = GetRefsAsActors()
     int i = 0
@@ -106,20 +97,11 @@ Event OnPlayerBowShot(Weapon akWeapon, Ammo akAmmo, Float afPower, Bool abSunGaz
     EndWhile
 EndEvent
 
-Event OnSit(ObjectReference akFurniture)
-    Actor[] actors = GetRefsAsActors()
-    int i = 0
-    While i < 20
-        InworldSKSE.LogEvent(actors[i], CurrentTimeString() + self.GetActorRef().GetDisplayName() + " has sit down. ")
-        i += 1
-    EndWhile
-EndEvent
-
 Event OnHit(ObjectReference akAggressor, Form akSource, Projectile akProjectile, Bool abPowerAttack, Bool abSneakAttack, Bool abBashAttack, Bool abHitBlocked)
     Actor[] actors = GetRefsAsActors()
     int i = 0
     While i < 20
-        InworldSKSE.LogEvent(actors[i], CurrentTimeString() + self.GetActorRef().GetDisplayName() + " was get hit by " + akAggressor.GetDisplayName() + ". ")
+        InworldSKSE.LogEvent(actors[i], CurrentTimeString() + self.GetActorRef().GetDisplayName() + " was got hit by " + akAggressor.GetDisplayName() + ". ")
         i += 1
     EndWhile
 EndEvent

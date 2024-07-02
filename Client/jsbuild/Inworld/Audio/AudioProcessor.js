@@ -75,7 +75,7 @@ export class AudioProcessor extends EventEmitter {
         return new Promise(async (resolve) => {
             try {
                 let duration = await this.saveAudio(data.chunk, data.voiceFileName, data.text, data.stepCount, data.temp_file_suffix);
-                data.callback(duration);
+                data.callback(duration, data.text);
                 waitSync(duration);
                 this.processing = false;
                 this.emit('processNext');

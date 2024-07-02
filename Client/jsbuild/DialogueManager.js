@@ -10,6 +10,7 @@ export default class DialogueManager {
     shouldStop = false;
     sourceHistory = [];
     targetHistory = [];
+    profile;
     started = false;
     initialized = false;
     conversationOngoing = false;
@@ -42,17 +43,18 @@ export default class DialogueManager {
     }
     finalizeConversation(source, target) {
         console.log("Saving conversation history.");
-        this.ClientManager_N2N_Source.SaveDialogueHistory(source, this.sourceHistory);
-        this.ClientManager_N2N_Target.SaveDialogueHistory(target, this.targetHistory);
+        this.ClientManager_N2N_Source.SaveDialogueHistory(source, this.sourceHistory, this.profile);
+        this.ClientManager_N2N_Target.SaveDialogueHistory(target, this.targetHistory, this.profile);
         setTimeout(2000, () => {
             this.reset();
         });
     }
-    async Manage_N2N_Dialogue(source, target, location, currentDateTime) {
+    async Manage_N2N_Dialogue(source, target, playerName, location, currentDateTime) {
         await setTimeout(1000);
-        this.ClientManager_DungeonMaster.Init("Please keep your answers short if possible.");
-        this.ClientManager_N2N_Source.Init("You are at " + location + ". It's " + currentDateTime + ". Please keep your answers short.");
-        this.ClientManager_N2N_Target.Init("You are at " + location + ". It's " + currentDateTime + ". Please keep your answers short.");
+        this.profile = playerName;
+        this.ClientManager_DungeonMaster.SendNarratedAction("Please keep your answers short if possible.");
+        this.ClientManager_N2N_Source.SendNarratedAction("You are at " + location + ". It's " + currentDateTime + ". Please keep your answers short if possible.");
+        this.ClientManager_N2N_Target.SendNarratedAction("You are at " + location + ". It's " + currentDateTime + ". Please keep your answers short if possible.");
         this.ClientManager_DungeonMaster.Say("As you walk around in " + location + ", you see " + target + ". What do you to say to him/her? Please answer as if you are talking to him/her.");
         this.sourceHistory.push({
             talker: DialogParticipant.UNKNOWN,
@@ -72,7 +74,7 @@ export default class DialogueManager {
         EventBus.GetSingleton().on('GM_SOURCE_RESPONSE', (message) => {
             let shouldEnd = this.shouldEnd();
             if (!this.started && shouldEnd) {
-                this.reset();
+                this.stop();
                 return;
             }
             if (shouldEnd) {
@@ -99,6 +101,7 @@ export default class DialogueManager {
             let shouldEnd = this.shouldEnd();
             if (shouldEnd) {
                 this.ClientManager_N2N_Target.SendNarratedAction("You don't need to answer now.");
+                this.stop();
             }
             this.ClientManager_N2N_Target.Say(message, shouldEnd);
             this.ClientManager_DungeonMaster.SendNarratedAction(target + ' said "' + message + '" to you.');
@@ -119,6 +122,7 @@ export default class DialogueManager {
             let shouldEnd = this.shouldEnd();
             if (shouldEnd) {
                 this.ClientManager_N2N_Source.SendNarratedAction("You don't need to answer now.");
+                this.stop();
             }
             this.ClientManager_N2N_Source.Say(message, shouldEnd);
             this.ClientManager_DungeonMaster.SendNarratedAction('You said "' + message + '" to ' + target + '.');

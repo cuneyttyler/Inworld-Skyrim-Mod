@@ -2,11 +2,12 @@
     "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
     "name": "inworld-mod",
     "version-string": "0.0.1",
-    "dependencies": [
-        "commonlibsse-ng",
-        "nlohmann-json",
-        "cpr",
-        "websocketpp",
-        "boost-random"
-    ]
+  "dependencies": [
+    "commonlibsse-ng",
+    "nlohmann-json",
+    "directxtk",
+    "cpr",
+    "websocketpp",
+    "boost-random"
+  ]
 }

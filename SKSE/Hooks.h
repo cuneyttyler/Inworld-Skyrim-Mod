@@ -1,5 +1,4 @@
 namespace Inworld {
-// Hook into the Invoke calls in HUDMenu::ProcessMessage which call "HideSubtitle" and "ShowSubtitle"
 
 class UpdatePCHook {
 public:
@@ -15,18 +14,20 @@ private:
 
         RE::BSTArray<RE::SubtitleInfo> newSubtitles(10);
         auto subtitleManager = RE::SubtitleManager::GetSingleton();
+
         for (RE::SubtitleInfo& subtitleInfo : subtitleManager->subtitles) {
-            if (string(subtitleInfo.subtitle.c_str()).find("...") == std::string::npos) {
+            if (Util::trim(subtitleInfo.subtitle.c_str()) != "" && !std::string(subtitleInfo.subtitle.c_str())._Equal("...")) {
                 newSubtitles.push_back(subtitleInfo);
             }
         }
-
+        newSubtitles.push_back(RE::SubtitleInfo(subtitleManager->currentSpeaker, 0, "", 140, 1));
+        
         subtitleManager->subtitles = newSubtitles;
     }
     static inline REL::Relocation<decltype(UpdatePCMod)> UpdatePC;
 };
 
-
+// Hook into the Invoke calls in HUDMenu::ProcessMessage which call "HideSubtitle" and "ShowSubtitle"
 class InvokeHook {
     public:
         static void Install() {

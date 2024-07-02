@@ -1,10 +1,12 @@
 Scriptname InworldDialogueQuestN2NScript extends Quest  
 
-formlist property _InworldVoiceTypes auto
+formlist property _InworldRaceList auto
 globalvariable property N2N_ConversationOnGoing auto
 GlobalVariable property N2N_LastSuccessfulStart auto
 ReferenceAlias property normalTarget auto
 
+int lastTryTime = 0
+int retryInterval = 10
 int initiateTimeInterval = 180
 int initiateSamePairTimeInterval = 300
 
@@ -25,15 +27,16 @@ function CheckN2NDialogue()
             Actor sourceActor = game.FindRandomActorFromRef(Game.GetPlayer(), 700)
             If sourceActor != None && sourceActor != Game.GetPlayer() && IsAvailableForDialogue(sourceActor)
                 ; Debug.Trace("Inworld: Source Actor = " + sourceActor.GetDisplayName())
-                Actor targetActor = game.FindRandomActorFromRef(sourceActor, 210)
+                Actor targetActor = game.FindRandomActorFromRef(sourceActor, 280)
 
                 If targetActor != None && targetActor != sourceActor && targetActor != Game.GetPlayer() && IsAvailableForDialogue(targetActor)
                     ; Debug.Trace("Inworld: Target Actor = " + sourceActor.GetDisplayName())
 
                     
-                    If N2N_ConversationOnGoing.GetValueInt() == 0 && (isFirst() || _time - N2N_LastSuccessfulStart.GetValueInt() > initiateTimeInterval) && Utility.RandomInt(0,2) == 0
+                    If N2N_ConversationOnGoing.GetValueInt() == 0 && _time - lastTryTime > retryInterval && (isFirst() || _time - N2N_LastSuccessfulStart.GetValueInt() > initiateTimeInterval) && Utility.RandomInt(0,2) == 0
                         
                         Debug.Trace("Inworld: Sending InitiateConversation Signal For " + sourceActor.GetDisplayName() + " and " + targetActor.GetDisplayName())
+                        lastTryTime = _time
                         InworldSKSE.N2N_Initiate(sourceActor, targetActor)
                         SetPreviousActors(sourceActor, targetActor)
                     EndIf
@@ -57,6 +60,6 @@ bool function IsSameActors(Actor source, Actor target)
 endFunction 
 
 bool function IsAvailableForDialogue(Actor _actor)
-    return ((_InworldVoiceTypes.GetAt(0) as FormList).HasForm(_actor.GetVoiceType()) || (_InworldVoiceTypes.GetAt(1) as FormList).HasForm(_actor.GetVoiceType())) && normalTarget.GetActorRef() != _actor && _actor.GetCurrentScene() == None && _actor.IsEnabled() && !_actor.IsAlerted() && !_actor.IsAlarmed()  && !_actor.IsBleedingOut() && !_actor.isDead() && !_actor.IsUnconscious()
+    return _InworldRaceList.HasForm(_actor.GetRace()) && normalTarget.GetActorRef() != _actor && _actor.GetCurrentScene() == None && _actor.IsEnabled() && !_actor.IsAlerted() && !_actor.IsAlarmed()  && !_actor.IsBleedingOut() && !_actor.isDead() && !_actor.IsUnconscious()
 endFunction
 

@@ -29,7 +29,11 @@ class InworldEventSink : public RE::BSTEventSink<SKSE::CrosshairRefEvent>,
             } else if (a_result.IsString()) {
                 auto playerMessage = std::string(a_result.GetString());
 
-                if (to_lower(playerMessage).find(std::string("goodbye")) != std::string::npos) {
+                if (Util::trim(playerMessage).length() == 0) return;
+
+                Util::writeInworldLog("Received input == " + playerMessage + " ==.", 4);
+
+                if (Util::toLower(playerMessage).find(std::string("goodbye")) != std::string::npos) {
                     InworldEventSink::GetSingleton()->conversationPair = nullptr;
                     InworldCaller::stopSignal = true;
                 }
@@ -41,7 +45,7 @@ class InworldEventSink : public RE::BSTEventSink<SKSE::CrosshairRefEvent>,
                     conversationActor, playerMessage)
                     .detach();
 
-                
+                EventWatcher::SendSubtitle(RE::PlayerCharacter::GetSingleton(), playerMessage);
             }
             callback_();
         }
@@ -163,11 +167,10 @@ public:
                             OnKeyPressed();
                         }
                     }
-                    // U key
-                } else if (dxScanCode == 22) {
+                    // Y key
+                } else if (dxScanCode == 21) {
                     if (buttonEvent->IsDown() && conversationPair != nullptr && !InworldCaller::stopSignal &&
                         !InworldCaller::conversationOngoing && !InworldCaller::connecting) {
-                        Log("IfIn");
                         InworldCaller::Start(conversationPair);
                     } else if (buttonEvent->IsDown() && InworldCaller::conversationOngoing) {
                         if (!isOpenedWindow) OnPlayerRequestInput("UITextEntryMenu");
