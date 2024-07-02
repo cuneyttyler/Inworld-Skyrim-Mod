@@ -13,3 +13,4 @@ Client/InworldClientError.log
 Client/.env
 SKSE/build
 SKSE/.vs
+Mod/Sound/
