@@ -36,21 +36,22 @@ export default class InworldWorkspaceManager {
         let headers = await this.GetHeader();
         let response = await axios.get(SCENE_URI, { headers: headers });
         let scenes = response.data.scenes;
-        if (scenes.length == 0) {
-            console.error("No scenes found in database.");
-            return;
-        }
+        let name = "";
         let sceneId = "";
         if (type == 0) {
+            name = "GenericScene";
             sceneId = "workspaces/" + WORKSPACE_NAME + "/scenes/genericscene";
         }
         else if (type == 1) {
+            name = "GenericScene_N2N_0";
             sceneId = "workspaces/" + WORKSPACE_NAME + "/scenes/genericscene_n2n_0";
         }
         else if (type == 2) {
+            name = "GenericScene_N2N_1";
             sceneId = "workspaces/" + WORKSPACE_NAME + "/scenes/genericscene_n2n_1";
         }
         else if (type == 3) {
+            name = "GenericScene_N2N_2";
             sceneId = "workspaces/" + WORKSPACE_NAME + "/scenes/genericscene_n2n_2";
         }
         else {
@@ -58,7 +59,10 @@ export default class InworldWorkspaceManager {
         }
         let scene = scenes.find((s) => s.name === sceneId);
         if (!scene) {
-            throw "Scene doesn't exist on database.";
+            console.log("Scene doesn't exist on database. Creating...");
+            let payload = { displayName: name, characters: [], description: name, commonKnowledge: [] };
+            response = await axios.post("https://api.inworld.ai/studio/v1/workspaces/" + WORKSPACE_NAME + "/scenes", JSON.stringify(payload), { headers: headers });
+            scene = response.data;
         }
         let characters = [];
         if (append) {

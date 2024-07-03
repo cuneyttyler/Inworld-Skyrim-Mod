@@ -103,7 +103,7 @@ export class AudioProcessor extends EventEmitter {
         }
         for (var i = 0; i < VoiceTypes.length; i++) {
             var voiceType = VoiceTypes[i];
-            var outputFolder = process.env.SKYRIM_MODS_FOLDER + "\\InworldSkyrim\\Sound\\Voice\\InworldUIHelper.esp\\" + voiceType + "\\";
+            var outputFolder = process.env.MODS_FOLDER + "\\WithinWorld\\Sound\\Voice\\WithinWorld.esp\\" + voiceType + "\\";
             if (!fs.existsSync(outputFolder)) {
                 // Folder does not exist, so create it
                 fs.mkdir(outputFolder, (err) => {
@@ -131,7 +131,7 @@ export class AudioProcessor extends EventEmitter {
         }
         for (var j = 0; j < VoiceTypes.length; j++) {
             voiceType = VoiceTypes[j];
-            const outputFolder = process.env.SKYRIM_MODS_FOLDER + "\\InworldSkyrim\\Sound\\Voice\\InworldUIHelper.esp\\" + voiceType + "\\";
+            const outputFolder = process.env.MODS_FOLDER + "\\WithinWorld\\Sound\\Voice\\WithinWorld.esp\\" + voiceType + "\\";
             const audioFile = outputFolder + voiceFileName + ".wav";
             const lipFile = outputFolder + voiceFileName + ".lip";
             // Copying the file to a the same name
@@ -141,7 +141,7 @@ export class AudioProcessor extends EventEmitter {
         fs.unlinkSync(tempFileName);
         fs.unlinkSync('./Audio/Temp/' + voiceFileName + '_' + stepCount + '.wav');
         fs.unlinkSync('./Audio/Temp/' + voiceFileName + '_' + stepCount + '.lip');
-        outputFolder = process.env.SKYRIM_MODS_FOLDER + "\\InworldSkyrim\\Sound\\Voice\\InworldUIHelper.esp\\" + VoiceTypes[0] + "\\";
+        outputFolder = process.env.MODS_FOLDER + "\\WithinWorld\\Sound\\Voice\\WithinWorld.esp\\" + VoiceTypes[0] + "\\";
         const audioFile = outputFolder + voiceFileName + ".wav";
         return duration;
     }

@@ -5,7 +5,6 @@
   "dependencies": [
     "commonlibsse-ng",
     "nlohmann-json",
-    "directxtk",
     "cpr",
     "websocketpp",
     "boost-random"

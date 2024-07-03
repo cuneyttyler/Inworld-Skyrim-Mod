@@ -16,12 +16,13 @@ using websocketpp::lib::placeholders::_2;
 
 class Message {
 public:
-    Message(const string& type, const string& message, const string& id, const string& playerName = "",
+    Message(const string& type, const string& message, const string& id, const string& formId, const string& playerName = "",
             const string& location = "",
             const string& currentDateTime = "", const bool stop = false)
         : type(type),
           message(message),
           id(id),
+          formId(formId),
           playerName(playerName),
           location(location),
           currentDateTime(currentDateTime), stop(stop) {}
@@ -30,6 +31,7 @@ public:
         return {{"type", type},
                 {"message", message},
                 {"id", id},
+                {"formId", formId},
                 {"playerName", playerName},
                 {"is_n2n", false},
                 {"location", location},
@@ -42,6 +44,7 @@ private:
     string type;
     string message;
     string id;
+    string formId;
     string playerName;
     string location;
     string currentDateTime;
@@ -50,12 +53,14 @@ private:
 
 class N2NMessage {
 public:
-    N2NMessage(const string& type, const string& message, const string& source, const string& target, const string& playerName, int speaker,
+    N2NMessage(const string& type, const string& message, const string& source, const string& target, const string& sourceFormId, const string& targetFormId, const string& playerName, int speaker,
                const string& location, const string& currentDateTime = "")
         : type(type),
           message(message),
           source(source),
           target(target),
+          sourceFormId(sourceFormId),
+          targetFormId(targetFormId),
           playerName(playerName),
           speaker(speaker),
           location(location),
@@ -65,8 +70,10 @@ public:
         return {{"type", type},     
                 {"message", message}, 
                 {"is_n2n", true},      
-                {"source", source},     
-                {"target", target},    
+                {"source", source},   
+                {"target", target}, 
+                {"sourceFormId", sourceFormId},
+                {"targetFormId", targetFormId}, 
                 {"playerName", playerName},
                 {"speaker", speaker},
                 {"location", location},
@@ -78,6 +85,8 @@ private:
     string message;
     string source;
     string target;
+    string sourceFormId;
+    string targetFormId;
     string playerName;
     int speaker;
     string location;
@@ -91,9 +100,10 @@ public:
     client c;
     RE::Actor* conversationActor;
 
-    InworldSocketController() {
+    InworldSocketController(int type) {
         // Set up the connection parameters
         std::string uri = "ws://127.0.0.1:" + std::to_string(getClientPort()) + "/chat";
+        if (type == 1) uri = "ws://127.0.0.1:" + std::to_string(getClientPort()) + "/chat_n2n";
 
         try {
             // set logging policy if needed
@@ -119,11 +129,6 @@ public:
             Util::writeInworldLog("Unknown exception during socket connection.", 1);
             InworldCaller::Reset();
         }
-    }
-
-    static InworldSocketController* GetSingleton() {
-        static InworldSocketController singleton;
-        return &singleton;
     }
 
     int getClientPort() {
@@ -167,6 +172,8 @@ public:
             c.send(con->get_handle(), message_str, websocketpp::frame::opcode::text);
         } catch (const exception& e) {
             Util::writeInworldLog("Exception during send_message: " + string(e.what()), 1);
+        } catch (...) {
+            Util::writeInworldLog("Unkown exception during send_message", 1);
         }
     }
 
@@ -177,6 +184,8 @@ public:
             c.send(con->get_handle(), message_str, websocketpp::frame::opcode::text);
         } catch (const exception& e) {
             Util::writeInworldLog("Exception during send_message_n2n: " + string(e.what()), 1);
+        } catch (...) {
+            Util::writeInworldLog("Unkown exception during send_message_n2n", 1);
         }
     }
 
@@ -222,9 +231,10 @@ public:
                 InworldCaller::N2N_TargetActor = nullptr;
             }
         } 
-        catch (const exception& e) 
-        {
+        catch (const exception& e) {
             Util::writeInworldLog("Exception on on_message: " + string(e.what()), 1);
+        } catch (...) {
+            Util::writeInworldLog("Unkown exception during on_message", 1);
         }
     }
 };
@@ -232,6 +242,7 @@ public:
 class SocketManager {
 private:
     InworldSocketController* soc;
+    InworldSocketController* n2nSoc;
     const char* lastConnected;
     SocketManager() {}
 
@@ -245,20 +256,25 @@ public:
     }
 
     void initSocket() { 
-        soc = new InworldSocketController();
+        soc = new InworldSocketController(0);
+        n2nSoc = new InworldSocketController(1);
     }
 
     void sendMessage(std::string message, RE::Actor* conversationActor, bool stop) {
+        if (conversationActor == nullptr) return;
+
         auto id = conversationActor->GetName();
+        auto form_id = conversationActor->GetFormID();
+        
         auto playerName = RE::PlayerCharacter::GetSingleton()->GetName();
 
         if (lastConnected != id) {
             lastConnected = id;
-            Message* messageObj = new Message("connect", "connect request..", id, playerName, "", "", stop);
+            Message* messageObj = new Message("connect", "connect request..", id, to_string(form_id), playerName, "", "", stop);
             soc->send_message(messageObj);
         }
 
-        Message* messageObj = new Message("message", message, id, playerName, "", "", stop);
+        Message* messageObj = new Message("message", message, id, to_string(form_id), playerName, "", "", stop);
         soc->send_message(messageObj);
     }
 
@@ -272,36 +288,46 @@ public:
 
     void SendLogEvent(RE::Actor* actor, string log) { 
         try {
+            if (actor == nullptr) return;
             ValidateSocket();
             auto id = Util::GetActorName(actor);
+            auto form_id = actor->GetFormID();
             auto playerName = RE::PlayerCharacter::GetSingleton()->GetName();
             if (id == "") return;
-            Message* message = new Message("log_event", log, id, playerName);
+            Message* message = new Message("log_event", log, id, to_string(form_id), playerName);
             soc->send_message(message);
         } catch (const exception& e) {
             Util::writeInworldLog("Exception on SendLogEvent: " + string(e.what()), 1);
+        } catch (...) {
+            Util::writeInworldLog("Unkown exception during SendLogEvent", 1);
         }
     }
 
     void SendN2NStartSignal(RE::Actor* source, RE::Actor* target, string currentDateTime) {
+        if (source == nullptr|| target == nullptr) return;
         Util::writeInworldLog(
             "Sending N2N Start Signal == " + Util::GetActorName(source) + ", " + Util::GetActorName(target) + " ==", 4);
         auto playerName = RE::PlayerCharacter::GetSingleton()->GetName();
-        N2NMessage* message = new N2NMessage("start", "", source->GetName(), target->GetName(), playerName, 0,
+        N2NMessage* message = new N2NMessage("start", "", source->GetName(), target->GetName(),
+                                             to_string(source->GetFormID()), to_string(target->GetFormID()), playerName,
+                                             0,
                            source->GetCurrentLocation()->GetName(), currentDateTime);
-        soc->send_message_n2n(message);
+        n2nSoc->send_message_n2n(message);
     }
 
     void SendN2NStopSignal() {
         Util::writeInworldLog("Sending N2N STOP Signal.", 4);
         auto playerName = RE::PlayerCharacter::GetSingleton()->GetName();
-        N2NMessage* message = new N2NMessage("stop", "", "", "", playerName, 0, "");
-        soc->send_message_n2n(message);
+        N2NMessage* message = new N2NMessage("stop", "", "", "", "", "", playerName, 0, "");
+        n2nSoc->send_message_n2n(message);
     }
 
     void ValidateSocket() { 
         if (soc == nullptr || soc->con == nullptr) {
-            soc = new InworldSocketController();
+            soc = new InworldSocketController(0);
+        }
+        if (n2nSoc == nullptr || n2nSoc->con == nullptr) {
+            n2nSoc = new InworldSocketController(1);
         }
     }
 
@@ -309,44 +335,53 @@ public:
         try {
             ValidateSocket();
             auto id = conversationActor->GetName();
+            auto form_id = conversationActor->GetFormID();
             
             if (id == nullptr || id == "") return;
             if (lastConnected != id) return;
             InworldCaller::conversationActor = conversationActor;
             Message* message;
             if (talk) 
-                 message = new Message("start_listen", "start", lastConnected);
+                 message = new Message("start_listen", "start", lastConnected, "");
             else
-                message = new Message("stop_listen", "stop", lastConnected);
+                 message = new Message("stop_listen", "stop", lastConnected, "");
             soc->send_message(message);
         } catch (const exception& e) {
             Util::writeInworldLog("Exception on controlVoiceInput: " + string(e.what()), 1);
+        } catch (...) {
+            Util::writeInworldLog("Unkown exception during controlVoiceInput", 1);
         }
     }
 
     void connectTo(RE::Actor* conversationActor, string currentDateTime) {
+        if (conversationActor == nullptr) return;
         ValidateSocket();
         auto id = conversationActor->GetName();
+        auto form_id = conversationActor->GetFormID();
         auto location = conversationActor->GetCurrentLocation()->GetName();
         auto playerName = RE::PlayerCharacter::GetSingleton()->GetName();
         if (id == nullptr || id == "") return;
         Util::writeInworldLog("Connecting to " + Util::GetActorName(conversationActor) + ".", 4);
         InworldCaller::conversationActor = conversationActor;
         lastConnected = id;
-        Message* message = new Message("connect", "connect request..", id, playerName, location, currentDateTime);
+        Message* message =
+            new Message("connect", "connect request..", id, to_string(form_id), playerName, location, currentDateTime);
         soc->send_message(message);
     }
 
     void connectTo_N2N(RE::Actor* sourceActor, RE::Actor* targetActor) {
+        if (sourceActor == nullptr || targetActor == nullptr) return;
         ValidateSocket();
         auto source_id = sourceActor->GetName();
         auto target_id = targetActor->GetName();
+        auto source_form_id = sourceActor->GetFormID();
+        auto target_form_id = targetActor->GetFormID();
         if (source_id == nullptr || source_id == "" || target_id == nullptr || target_id == "") return;
         Util::writeInworldLog("Connecting(N2N) to " + string(source_id) + " and " + string(target_id) + ".", 4);
         InworldCaller::N2N_SourceActor = sourceActor;
         InworldCaller::N2N_TargetActor = targetActor;
         auto playerName = RE::PlayerCharacter::GetSingleton()->GetName();
-        N2NMessage* message = new N2NMessage("connect", "connect", source_id, target_id, playerName, 0,"");
-        soc->send_message_n2n(message);
+        N2NMessage* message = new N2NMessage("connect", "connect", source_id, target_id, to_string(source_form_id), to_string(target_form_id), playerName, 0,"");
+        n2nSoc->send_message_n2n(message);
     }
 };

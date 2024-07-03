@@ -16,24 +16,51 @@ private:
         auto subtitleManager = RE::SubtitleManager::GetSingleton();
 
         for (RE::SubtitleInfo& subtitleInfo : subtitleManager->subtitles) {
-            if (Util::trim(subtitleInfo.subtitle.c_str()) != "" && !std::string(subtitleInfo.subtitle.c_str())._Equal("...")) {
+            if (std::string(subtitleInfo.subtitle.c_str()) !=
+                "" && !std::string(subtitleInfo.subtitle.c_str())._Equal("...")) {
+                Util::writeInworldLog("SUBTITLE ==" + std::string(subtitleInfo.subtitle.c_str()) + "==");
                 newSubtitles.push_back(subtitleInfo);
+            } else {
+                Util::writeInworldLog("OMITTING");
             }
         }
-        newSubtitles.push_back(RE::SubtitleInfo(subtitleManager->currentSpeaker, 0, "", 140, 1));
         
         subtitleManager->subtitles = newSubtitles;
     }
     static inline REL::Relocation<decltype(UpdatePCMod)> UpdatePC;
 };
 
+class GFxValueHook : public RE::GFxValue::ObjectInterface {
+public:
+    using Invoke_t = decltype(&RE::GFxValue::ObjectInterface::Invoke);
+    inline static REL::Relocation<Invoke_t> _Invoke;
+
+    bool Invoke_Hook(void* a_data, RE::GFxValue* a_result, const char* a_name, const RE::GFxValue* a_args,
+                     RE::UPInt a_numArgs, bool a_isDObj) {
+        try {
+            Util::writeInworldLog("Hook GFx::Invoke.");
+            return _Invoke(this, a_data, a_result, a_name, a_args, a_numArgs, a_isDObj);
+        } catch (const exception& e) {
+            Util::writeInworldLog("Exception during GFxValue::ObjectInterface::Invoke: " + std::string(e.what()), 1);
+            return false;
+        } catch (...) {
+            Util::writeInworldLog("Unknown Exception during GFxValue::ObjectInterface::Invoke.", 1);
+            return false;
+        }
+    }
+};
+
 // Hook into the Invoke calls in HUDMenu::ProcessMessage which call "HideSubtitle" and "ShowSubtitle"
 class InvokeHook {
     public:
         static void Install() {
-            auto address = REL::VariantID(50718, 51612, 0).address();
+            Util::writeInworldLog("Installing InvokeHook");
 
+            auto address = REL::VariantID(50718, 51612, 0).address();
             auto offset = REL::VariantOffset(0x756, 0x77E, 0).offset();
+
+            SKSE::AllocTrampoline(320);
+
             SKSE::GetTrampoline().write_call<5>(address + offset, InvokeModHide);
 
             offset = REL::VariantOffset(0x703, 0x72B, 0).offset();
@@ -53,6 +80,10 @@ class InvokeHook {
 
         static bool InvokeModShow(RE::GFxValue::ObjectInterface* objInt, void* a_data, RE::GFxValue* a_result,
                                   const char* a_name, const RE::GFxValue* a_args, RE::UPInt a_numArgs, bool isDObj) {
+
+            if (string(a_args->GetString()).find(": ...") != std::string::npos) {
+                return true;
+            }
             // We don't have to check here since this one only handles "ShowSubtitle" invocations
             return objInt->Invoke(a_data, a_result, a_name, a_args, a_numArgs, isDObj);
         }

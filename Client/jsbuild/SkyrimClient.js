@@ -28,6 +28,7 @@ ClientManager_DungeonMaster.SetWorkspaceManager(ClientManager.GetWorkspaceManage
 var dialogueManager = new DialogueManager(N2N_MAX_STEP_COUNT, ClientManager_DungeonMaster, ClientManager_N2N_Source, ClientManager_N2N_Target);
 ;
 var id;
+var formId;
 var dialogueHistory = [];
 var _profile;
 EventBus.GetSingleton().on('TARGET_RESPONSE', (msg) => {
@@ -39,11 +40,12 @@ EventBus.GetSingleton().on('TARGET_RESPONSE', (msg) => {
 EventBus.GetSingleton().on('END', (msg) => {
     if (!id)
         return;
-    ClientManager.SaveDialogueHistory(id, dialogueHistory, _profile);
+    ClientManager.SaveDialogueHistory(id + "_" + formId, dialogueHistory, _profile);
     ClientManager.CleanupScene();
     dialogueHistory = [];
     _profile = null;
     id = null;
+    formId = null;
 });
 function GetEventFile(id, profile) {
     try {
@@ -113,13 +115,14 @@ fastify.register(async function (fastify) {
                 let result = await ClientManager.ConnectToCharacterViaSocket(message.id, message.playerName, message.playerName, connection.socket);
                 if (result) {
                     id = message.id;
+                    formId = message.formId;
                     _profile = message.playerName;
                     dialogueHistory.push({
                         talker: DialogParticipant.UNKNOWN,
                         phrase: 'In ' + message.location + ', on ' + message.currentDateTime + ', you started to talk with ' + message.playerName + '. '
                     });
                     // ClientManager.SendNarratedAction('Please keep your answers short if possible.');
-                    let events = GetEvents(message.id, _profile);
+                    let events = GetEvents(id + "_" + formId, _profile);
                     if (events && events != "") {
                         console.log("Sending event log for " + message.id);
                         ClientManager.SendNarratedAction(events);
@@ -145,24 +148,50 @@ fastify.register(async function (fastify) {
             else if (message.type == "stop" && !message.is_n2n) {
                 EventBus.GetSingleton().emit("END");
             }
+            else if (message.type == "log_event") {
+                SaveEventLog(message.id + "_" + message.formId, message.message + " ", message.playerName);
+                if (ClientManager.IsConversationOngoing()) {
+                    ClientManager.SendNarratedAction(message.message + " ");
+                }
+                if (dialogueManager.IsConversationOngoing()) {
+                    ClientManager_DungeonMaster.SendNarratedAction(message.message + " ");
+                    ClientManager_N2N_Target.SendNarratedAction(message.message + " ");
+                    ClientManager_N2N_Source.SendNarratedAction(message.message + " ");
+                }
+            }
+        });
+    });
+});
+fastify.register(async function (fastify) {
+    fastify.get('/chat_n2n', {
+        websocket: true
+    }, (connection, req) => {
+        connection.socket.on('message', async (msg) => {
+            let message = JSON.parse(msg.toString());
+            if (message.type != 'log_event') {
+                console.log("Message received", message);
+            }
+            if (message.type == "stop" && !message.is_n2n) {
+                EventBus.GetSingleton().emit("END");
+            }
             else if (message.type == "connect" && message.is_n2n) {
                 let result = await ClientManager_DungeonMaster.ConnectToCharacterViaSocket(message.source, "DungeonMaster", message.playerName, connection.socket);
                 result = result && await ClientManager_N2N_Source.ConnectToCharacterViaSocket(message.target, message.source, message.playerName, connection.socket);
                 result = result && await ClientManager_N2N_Target.ConnectToCharacterViaSocket(message.source, message.target, message.playerName, connection.socket);
                 if (result) {
-                    let sourceEvents = GetEvents(message.source, message.playerName);
+                    let sourceEvents = GetEvents(message.source + "_" + message.sourceFormId, message.playerName);
                     if (sourceEvents && sourceEvents != "") {
                         ClientManager_DungeonMaster.SendNarratedAction(sourceEvents);
                         ClientManager_N2N_Target.SendNarratedAction(sourceEvents);
                     }
-                    let targetEvents = GetEvents(message.target, message.playerName);
+                    let targetEvents = GetEvents(message.target + "_" + message.targetFormid, message.playerName);
                     if (targetEvents && targetEvents != "") {
                         ClientManager_N2N_Source.SendNarratedAction(targetEvents);
                     }
                 }
             }
             else if (message.type == "start" && message.is_n2n) {
-                dialogueManager.Manage_N2N_Dialogue(message.source, message.target, message.playerName, message.location, message.currentDateTime);
+                dialogueManager.Manage_N2N_Dialogue(message.source, message.target, message.sourceFormId, message.targetFormId, message.playerName, message.location, message.currentDateTime);
             }
             else if (message.type == "stop" && message.is_n2n) {
                 if (dialogueManager && dialogueManager.running()) {
@@ -173,7 +202,7 @@ fastify.register(async function (fastify) {
                 }
             }
             else if (message.type == "log_event") {
-                SaveEventLog(message.id, message.message + " ", message.playerName);
+                SaveEventLog(message.id + "_" + message.formId, message.message + " ", message.playerName);
                 if (ClientManager.IsConversationOngoing()) {
                     ClientManager.SendNarratedAction(message.message + " ");
                 }

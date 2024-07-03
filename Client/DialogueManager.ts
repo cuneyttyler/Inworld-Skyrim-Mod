@@ -47,16 +47,16 @@ export default class DialogueManager {
         return this.started;
     }
 
-    finalizeConversation(source, target) {
+    finalizeConversation(source, target, sourceFormId, targetFormId) {
         console.log("Saving conversation history.");
-        this.ClientManager_N2N_Source.SaveDialogueHistory(source, this.sourceHistory, this.profile);
-        this.ClientManager_N2N_Target.SaveDialogueHistory(target, this.targetHistory, this.profile);
+        this.ClientManager_N2N_Source.SaveDialogueHistory(source + "_" + sourceFormId, this.sourceHistory, this.profile);
+        this.ClientManager_N2N_Target.SaveDialogueHistory(target + "_" + targetFormId, this.targetHistory, this.profile);
         setTimeout(2000, () => {
             this.reset();
         });
     }
 
-    async Manage_N2N_Dialogue(source, target, playerName, location, currentDateTime) {
+    async Manage_N2N_Dialogue(source, target, sourceFormId, targetFormId, playerName, location, currentDateTime) {
         await setTimeout(1000);
         
         this.profile = playerName;
@@ -76,13 +76,13 @@ export default class DialogueManager {
             phrase: 'In ' + location + ', on ' + currentDateTime + ', ' + source + ' approached you and you started to talk.'
         });
         if(!this.initialized) {
-            this.Init(source, target);
+            this.Init(source, target, sourceFormId, targetFormId);
             this.initialized = true;
         }
         this.conversationOngoing = true;
     }
 
-    async Init(source, target) {
+    async Init(source, target, sourceFormId, targetFormId) {
 
         EventBus.GetSingleton().on('GM_SOURCE_RESPONSE', (message) => {
             let shouldEnd = this.shouldEnd();
@@ -108,7 +108,7 @@ export default class DialogueManager {
             });
 
             if(shouldEnd) {
-                this.finalizeConversation(source, target);
+                this.finalizeConversation(source, target, sourceFormId, targetFormId);
                 this.ClientManager_DungeonMaster.SendEndSignal();
             }
 

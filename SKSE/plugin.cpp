@@ -50,17 +50,26 @@ public:
             return "";
         }
 
-        if (auto xTextData = actor->extraList.GetByType<RE::ExtraTextDisplayData>(); xTextData) {
-            return actor->GetDisplayFullName();
-        }
-
-        if (auto actorBase = actor->GetActorBase(); actorBase) {
-            if (actorBase->shortName.size() > 0) {
-                return actorBase->shortName.c_str();
+        try {
+            string name = actor->GetName();
+            if (name.length() > 0) {
+                return name;
             }
-        }
 
-        return actor->GetName();
+            if (auto actorBase = actor->GetActorBase(); actorBase) {
+                if (actorBase->shortName.size() > 0) {
+                    return actorBase->shortName.c_str();
+                }
+            }
+
+            return "";
+        } catch (const exception& e) {
+            Util::writeInworldLog("Exception during ==GetActorName==: " + string(e.what()), 1);
+            return "";
+        } catch (...) {
+            Util::writeInworldLog("Unkown exception during ==GetActorName==", 1);
+            return "";
+        }
     }
 
     static std::string toLower(std::string s) {
@@ -106,20 +115,22 @@ using namespace std;
 
 static class SubtitleManager {
 public:
-    static void ShowSubtitle(string actorName, string subtitle, float duration) {
+
+    static RE::SubtitleInfo* GetSubtitle(RE::Actor* actor, string subtitle) {
+        RE::SubtitleInfo* subtitleInfo = new RE::SubtitleInfo();
+        subtitleInfo->forceDisplay = 1;
+        subtitleInfo->pad04 = 0;
+        subtitleInfo->speaker = actor;
+        subtitleInfo->subtitle = subtitle;
+        subtitleInfo->targetDistance = 140;
+
+        return subtitleInfo;
+    }
+    static void ShowSubtitle(RE::Actor* actor, string subtitle, float duration) {
 
         try {
-            auto hudMenu = RE::UI::GetSingleton()->GetMenu<RE::HUDMenu>(RE::HUDMenu::MENU_NAME);
-            auto root = hudMenu->GetRuntimeData().root;
-
-            if (Util::trim(subtitle).length() > 0) {
-                subtitle =
-                    std::format("<font color='#{:06X}'>{}</font>: {}", Util::speakerNameColor, actorName, subtitle.c_str());
-                RE::GFxValue asStr(subtitle.c_str());
-                root.Invoke("ShowSubtitle", nullptr, &asStr, 1);
-            } else {
-                HideSubtitle();
-            }
+            RE::SubtitleInfo* subtitleInfo = GetSubtitle(actor, subtitle);
+            RE::SubtitleManager::GetSingleton()->subtitles.push_back(*subtitleInfo);
         } catch (const exception& e) {
             Util::writeInworldLog("Exception during ==ShowSubtitle==: " + string(e.what()), 1);
         } catch (...) {
@@ -164,6 +175,7 @@ public:
                 tracker += " " + word;
             }
         }
+         
         return combined;
     }
 
@@ -213,7 +225,6 @@ public:
         InworldCaller::stopSignal = false;
         InworldCaller::conversationOngoing = false;
         InworldCaller::conversationActor = nullptr;
-        SubtitleManager::HideSubtitle();
     }
 
     static void Reset() {
@@ -239,7 +250,6 @@ public:
         SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
         InworldCaller::N2N_SourceActor = nullptr;
         InworldCaller::N2N_TargetActor = nullptr;
-        SubtitleManager::HideSubtitle();
     }
 
     static void ConnectionSuccessful() {
@@ -260,19 +270,18 @@ public:
         SKSE::ModCallbackEvent modEvent{"BLC_Speak", "", 0.0075f, InworldCaller::conversationActor};
         SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
         SendResponseLog(InworldCaller::conversationActor, message);
-        SubtitleManager::ShowSubtitle(InworldCaller::conversationActor->GetName(), message, duration);
-        this_thread::sleep_for(chrono::milliseconds((long)(duration * 1000)));
+        SubtitleManager::ShowSubtitle(InworldCaller::conversationActor, message, duration);
+        this_thread::sleep_for(chrono::milliseconds((long) (duration * 1000)));
         SubtitleManager::HideSubtitle();
     }
 
     static void SpeakN2N(std::string message, int speaker, float duration) {
-        Util::writeInworldLog("MESSAGE: " + message + ", " + to_string(speaker), 4);
         if (speaker == 0) {
             if (InworldCaller::N2N_SourceActor == nullptr) return;
             SKSE::ModCallbackEvent modEvent{"BLC_Speak_N2N", "", 0, InworldCaller::N2N_SourceActor};
             SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
             SendResponseLog(InworldCaller::N2N_SourceActor, message);
-            SubtitleManager::ShowSubtitle(InworldCaller::N2N_SourceActor->GetName(), message, duration);
+            SubtitleManager::ShowSubtitle(InworldCaller::N2N_SourceActor, message, duration);
             this_thread::sleep_for(chrono::milliseconds((long)(duration * 1000)));
             SubtitleManager::HideSubtitle();
         } else {
@@ -280,7 +289,7 @@ public:
             SKSE::ModCallbackEvent modEvent{"BLC_Speak_N2N", "", 1, InworldCaller::N2N_TargetActor};
             SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
             SendResponseLog(InworldCaller::N2N_TargetActor, message);
-            SubtitleManager::ShowSubtitle(InworldCaller::N2N_TargetActor->GetName(), message, duration);
+            SubtitleManager::ShowSubtitle(InworldCaller::N2N_TargetActor, message, duration);
             this_thread::sleep_for(chrono::milliseconds((long)(duration * 1000)));
             SubtitleManager::HideSubtitle();
         }
@@ -393,8 +402,6 @@ public:
             actorsStr += Util::GetActorName(actor) + ", ";
         }
         if (actorsStr.length() > 0) actorsStr = actorsStr.substr(0, actorsStr.length() - 2);
-        Util::writeInworldLog(
-            "Sending subtitle == " + subtitle + " == [" + actorsStr + "]", 4);
     }
 
     static void WatchSubtitles() {
@@ -418,7 +425,7 @@ public:
 class ModPort {
 public:
     static bool Start(RE::StaticFunctionTag*, RE::Actor* target, string currentDateTime) {
-        if (!target) {
+        if (target == nullptr) {
             return false;
         }
 
@@ -438,7 +445,7 @@ public:
     }
 
     static bool N2N_Initiate(RE::StaticFunctionTag*, RE::Actor* source, RE::Actor* target) {
-        if (!source || !target) {
+        if (source == nullptr || target == nullptr) {
             return false;
         }
 
@@ -572,10 +579,10 @@ int GetDebugLevel() {
 SKSEPluginLoad(const SKSE::LoadInterface* skse) {
     SKSE::Init(skse);
     
-    StartClient();
-
     Util::writeInworldLog("Plugin loaded. Initializing components.", 3);
     Util::LOG_LEVEL = GetDebugLevel();
+
+    StartClient();
 
     auto* eventSink = InworldEventSink::GetSingleton();
 
@@ -597,7 +604,9 @@ SKSEPluginLoad(const SKSE::LoadInterface* skse) {
     EventWatcher::DialogueMenuEx::_ProcessMessage =
         vTable_dm.write_vfunc(0x4, &EventWatcher::DialogueMenuEx::ProcessMessage_Hook);
 
-    Inworld::UpdatePCHook::Install();
+    //Inworld::UpdatePCHook::Install();
+    Inworld::InvokeHook::Install();
+
     Util::GetSettings();
 
     return true;

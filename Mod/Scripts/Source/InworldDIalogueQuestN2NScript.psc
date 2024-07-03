@@ -1,6 +1,7 @@
 Scriptname InworldDialogueQuestN2NScript extends Quest  
 
-formlist property _InworldRaceList auto
+formlist property _InworldVoiceTypes auto
+formlist property _InworldVoiceTypes_Exclude auto
 globalvariable property N2N_ConversationOnGoing auto
 GlobalVariable property N2N_LastSuccessfulStart auto
 ReferenceAlias property normalTarget auto
@@ -60,6 +61,6 @@ bool function IsSameActors(Actor source, Actor target)
 endFunction 
 
 bool function IsAvailableForDialogue(Actor _actor)
-    return _InworldRaceList.HasForm(_actor.GetRace()) && normalTarget.GetActorRef() != _actor && _actor.GetCurrentScene() == None && _actor.IsEnabled() && !_actor.IsAlerted() && !_actor.IsAlarmed()  && !_actor.IsBleedingOut() && !_actor.isDead() && !_actor.IsUnconscious()
+    return  ((_InworldVoiceTypes.GetAt(0) as FormList).HasForm(_actor.GetVoiceType()) || (_InworldVoiceTypes.GetAt(1) as FormList).HasForm(_actor.GetVoiceType())) &&  !_InworldVoiceTypes_Exclude.HasForm(_actor.GetVoiceType()) && _actor.GetCombatState() == 0 && normalTarget.GetActorRef() != _actor && _actor.GetCurrentScene() == None && _actor.IsEnabled() && !_actor.IsAlerted() && !_actor.IsAlarmed()  && !_actor.IsBleedingOut() && !_actor.isDead() && !_actor.IsUnconscious()
 endFunction
 

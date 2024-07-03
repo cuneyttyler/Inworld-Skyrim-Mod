@@ -4,7 +4,8 @@ actor[] actors
 int numFoundActors
 
 ReferenceAlias[] property ActorRefs auto
-formlist property _InworldRaceList auto
+formlist property _InworldVoiceTypes auto
+formlist property _InworldVoiceTypes_Exclude auto
 
 Event OnInit()
     numFoundActors = 0
@@ -52,7 +53,7 @@ Function SendActors()
 EndFunction
 
 bool function IsAvailable(Actor _actor)
-    return _InworldRaceList.HasForm(_actor.GetRace()) && _actor.IsEnabled() && !_actor.isDead() && !_actor.IsUnconscious()
+    return  ((_InworldVoiceTypes.GetAt(0) as FormList).HasForm(_actor.GetVoiceType()) || (_InworldVoiceTypes.GetAt(1) as FormList).HasForm(_actor.GetVoiceType())) && !_InworldVoiceTypes_Exclude.HasForm(_actor.GetVoiceType()) && _actor.IsEnabled() && !_actor.isDead() && !_actor.IsUnconscious()
 endFunction
 
 bool Function IsInArray(Actor _actor, Actor[] arr)

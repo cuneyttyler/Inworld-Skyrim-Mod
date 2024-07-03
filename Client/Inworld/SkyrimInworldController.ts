@@ -14,7 +14,7 @@ export class SkyrimInworldController {
     private CombinedUserInput : string = "";
     private ResponseQueue : Array<string> = [];
     private ResponseIndex : number = -1;
-    private AudioStrings = [];
+    private previousDuration : number = 0;
     private FollowAcceptResponse = "Of course";
     private FollowDeclineResponse = "I'm sorry, I have other priorities to attend to.";
     private audioProcessor = new AudioProcessor();
@@ -59,6 +59,7 @@ export class SkyrimInworldController {
             const interval = setInterval(() => {
                 if(this.ResponseQueue.length > 0) {
                     this.audioProcessor.addAudioStream(new AudioData(msg.audio.chunk, topic_filename, this.ResponseQueue[0], this.stepCount, temp_file_suffix, (duration, response) => {
+                        this.previousDuration = duration;
                         let result = GetPayload(response, "chat", duration, cm.is_n2n, target);
                         this.socket.send(JSON.stringify(result));
                     }))

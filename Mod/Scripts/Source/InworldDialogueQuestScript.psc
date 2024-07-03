@@ -9,7 +9,8 @@ referencealias property target_n2n auto
 package property InworldTravelToNpcLocationPackage auto
 package property InworldStandPackage auto
 package property InworldN2NStandPackage auto
-formlist property _InworldRaceList auto
+formlist property _InworldVoiceTypes auto
+formlist property _InworldVoiceTypes_Exclude auto
 GlobalVariable property ConversationOnGoing auto
 GlobalVariable property N2N_ConversationOnGoing auto
 GlobalVariable property N2N_LastSuccessfulStart auto
@@ -101,7 +102,7 @@ function _Start(String eventName, String strArg, Float numArg, Form sender)
         return;
     EndIf
     If !IsAvailableForDialogue(sender as Actor)
-        Debug.Notification("NPC is not in available for dialogue.")
+        Debug.Notification("NPC is not available for dialogue.")
         return
     EndIf
     debug.Trace("Inworld: Start Dialogue")
@@ -177,5 +178,5 @@ function AddToFollowers(String eventName, String strArg, Float numArg, Form send
 endFunction
 
 bool function IsAvailableForDialogue(Actor _actor)
-    return _InworldRaceList.HasForm(_actor.GetRace()) && _actor.IsEnabled()&& !_actor.IsAlerted() && !_actor.IsAlarmed()  && !_actor.IsBleedingOut() && !_actor.isDead() && !_actor.IsUnconscious()
+    return ((_InworldVoiceTypes.GetAt(0) as FormList).HasForm(_actor.GetVoiceType()) || (_InworldVoiceTypes.GetAt(1) as FormList).HasForm(_actor.GetVoiceType())) && !_InworldVoiceTypes_Exclude.HasForm(_actor.GetVoiceType()) && _actor.GetCombatState() == 0 && _actor.IsEnabled()&& !_actor.IsAlerted() && !_actor.IsAlarmed()  && !_actor.IsBleedingOut() && !_actor.isDead() && !_actor.IsUnconscious()
 endFunction
