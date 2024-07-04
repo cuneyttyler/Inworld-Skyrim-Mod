@@ -77,6 +77,18 @@ public:
         return s;
     }
 
+    static vector<string> split(const string& str, const string& delim) {
+        vector<string> result;
+        size_t start = 0;
+
+        for (size_t found = str.find(delim); found != string::npos; found = str.find(delim, start)) {
+            result.emplace_back(str.begin() + start, str.begin() + found);
+            start = found + delim.size();
+        }
+        if (start != str.size()) result.emplace_back(str.begin() + start, str.end());
+        return result;
+    }
+
     static void ConsoleLog(std::string log) { RE::ConsoleLog::GetSingleton()->Print(log.c_str()); }
     
     static void writeInworldLog(const std::string& message, int level = 3) {
@@ -115,6 +127,7 @@ using namespace std;
 
 static class SubtitleManager {
 public:
+    inline static std::mutex m;
 
     static RE::SubtitleInfo* GetSubtitle(RE::Actor* actor, string subtitle) {
         RE::SubtitleInfo* subtitleInfo = new RE::SubtitleInfo();
@@ -127,6 +140,7 @@ public:
         return subtitleInfo;
     }
     static void ShowSubtitle(RE::Actor* actor, string subtitle, float duration) {
+        m.lock();
 
         try {
             RE::SubtitleInfo* subtitleInfo = GetSubtitle(actor, subtitle);
@@ -136,18 +150,26 @@ public:
         } catch (...) {
             Util::writeInworldLog("Unknown exception during ==ShowSubtitle==.", 1);
         }
+
+        m.unlock();
     }
 
-    static void HideSubtitle() {
+    static void HideSubtitle(RE::Actor* actor) {
+        m.lock();
+
         try {
             auto hudMenu = RE::UI::GetSingleton()->GetMenu<RE::HUDMenu>(RE::HUDMenu::MENU_NAME);
             auto root = hudMenu->GetRuntimeData().root;
             root.Invoke("HideSubtitle", nullptr, nullptr, 0);
+            /*RE::SubtitleInfo* subtitleInfo = GetSubtitle(actor, "_");
+            RE::SubtitleManager::GetSingleton()->subtitles.push_back(*subtitleInfo);*/
         } catch (const exception& e) {
             Util::writeInworldLog("Exception during ==HideSubtitle==: " + string(e.what()), 1);
         } catch (...) {
             Util::writeInworldLog("Unknown exception during ==HideSubtitle==.", 1);
         }
+
+        m.unlock();
     }
 };
 
@@ -223,6 +245,7 @@ public:
         SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
         SetHoldPosition(1, InworldCaller::conversationActor);
         InworldCaller::stopSignal = false;
+        InworldCaller::connecting = false;
         InworldCaller::conversationOngoing = false;
         InworldCaller::conversationActor = nullptr;
     }
@@ -253,11 +276,13 @@ public:
     }
 
     static void ConnectionSuccessful() {
-        Util::writeInworldLog("Connected to " + Util::GetActorName(conversationActor) + ".", 3);
-        InworldCaller::conversationOngoing = true;
-        InworldCaller::stopSignal = false;
-        InworldCaller::connecting = false;
-        SetHoldPosition(0, conversationActor);
+        if (InworldCaller::connecting) {
+            Util::writeInworldLog("Connected to " + Util::GetActorName(conversationActor) + ".", 3);
+            InworldCaller::conversationOngoing = true;
+            InworldCaller::stopSignal = false;
+            InworldCaller::connecting = false;
+            SetHoldPosition(0, conversationActor);
+        }
     }
 
     static void SendResponseLog(RE::Actor* actor, string message) {
@@ -266,13 +291,16 @@ public:
     }
 
     static void Speak(std::string message, float duration) {
-        if (InworldCaller::conversationActor == nullptr) return;
+        if (InworldCaller::conversationActor == nullptr) {
+            Util::writeInworldLog("SPEAK REQUEST == ConversationActor is NULL == RETURNING.", 2);
+            return;
+        }
         SKSE::ModCallbackEvent modEvent{"BLC_Speak", "", 0.0075f, InworldCaller::conversationActor};
         SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
         SendResponseLog(InworldCaller::conversationActor, message);
         SubtitleManager::ShowSubtitle(InworldCaller::conversationActor, message, duration);
         this_thread::sleep_for(chrono::milliseconds((long) (duration * 1000)));
-        SubtitleManager::HideSubtitle();
+        SubtitleManager::HideSubtitle(InworldCaller::conversationActor);
     }
 
     static void SpeakN2N(std::string message, int speaker, float duration) {
@@ -283,7 +311,7 @@ public:
             SendResponseLog(InworldCaller::N2N_SourceActor, message);
             SubtitleManager::ShowSubtitle(InworldCaller::N2N_SourceActor, message, duration);
             this_thread::sleep_for(chrono::milliseconds((long)(duration * 1000)));
-            SubtitleManager::HideSubtitle();
+            SubtitleManager::HideSubtitle(InworldCaller::N2N_SourceActor);
         } else {
             if (InworldCaller::N2N_TargetActor == nullptr) return;
             SKSE::ModCallbackEvent modEvent{"BLC_Speak_N2N", "", 1, InworldCaller::N2N_TargetActor};
@@ -291,7 +319,7 @@ public:
             SendResponseLog(InworldCaller::N2N_TargetActor, message);
             SubtitleManager::ShowSubtitle(InworldCaller::N2N_TargetActor, message, duration);
             this_thread::sleep_for(chrono::milliseconds((long)(duration * 1000)));
-            SubtitleManager::HideSubtitle();
+            SubtitleManager::HideSubtitle(InworldCaller::N2N_TargetActor);
         }
     }
 };
@@ -310,6 +338,8 @@ static class EventWatcher {
     }
 
 public:
+    inline static std::mutex m;
+
     class DialogueMenuEx : public RE::DialogueMenu {
     public:
         using ProcessMessage_t = decltype(&RE::DialogueMenu::ProcessMessage);
@@ -368,6 +398,7 @@ public:
             RE::MenuTopicManager* topicManager = RE::MenuTopicManager::GetSingleton();
             RE::Actor* speaker = static_cast<RE::Actor*>(topicManager->speaker.get().get());
 
+            m.lock();
             switch (a_message.type.get()) {
                 case RE::UI_MESSAGE_TYPE::kUserEvent: {
                     ProcessTopic(topicManager, speaker);
@@ -379,6 +410,7 @@ public:
                     ProcessTopic(topicManager, speaker);
                 } break;
             }
+            m.unlock();
 
             return _ProcessMessage(this, a_message);
         }
@@ -488,13 +520,17 @@ public:
     }
 
     static bool ClearActors(RE::StaticFunctionTag*) {
+        EventWatcher::m.lock();
         EventWatcher::actors.empty();
+        EventWatcher::m.unlock();
 
         return true;
     }
 
     static bool SendActor(RE::StaticFunctionTag*, RE::Actor* actor) {
+        EventWatcher::m.lock();
         EventWatcher::actors.insert(actor);
+        EventWatcher::m.unlock();
 
         return true;
     }

@@ -1,9 +1,7 @@
-import { VoiceTypes } from './VoiceTypes.js';
 import { EventEmitter } from 'events';
 import * as fs from 'fs';
 import { parseFile } from 'music-metadata';
 import syncExec from 'sync-exec';
-import waitSync from 'wait-sync';
 class Queue {
     items = [];
     enqueue(item) {
@@ -23,13 +21,15 @@ class Queue {
     }
 }
 export class AudioData {
+    index;
     chunk;
     voiceFileName;
     text;
     stepCount = 0;
     temp_file_suffix;
     callback;
-    constructor(chunk, voiceFileName, text, stepCount, temp_file_suffix, callback) {
+    constructor(index, chunk, voiceFileName, text, stepCount, temp_file_suffix, callback) {
+        this.index = index;
         this.chunk = chunk;
         this.voiceFileName = voiceFileName;
         this.text = text;
@@ -39,18 +39,24 @@ export class AudioData {
     }
 }
 export class AudioProcessor extends EventEmitter {
+    id;
+    eventName;
     queue;
     processing;
-    constructor() {
+    nextSendTime = 0;
+    lastIndex = 0;
+    constructor(id) {
         super();
+        this.id = id;
+        this.eventName = 'processNext_' + this.id;
         this.queue = new Queue();
         this.processing = false;
-        this.on('processNext', this.processNext);
+        this.on(this.eventName, this.processNext);
     }
     addAudioStream(data) {
         this.queue.enqueue(data);
         if (!this.processing) {
-            this.emit('processNext');
+            this.emit(this.eventName);
         }
     }
     async processNext() {
@@ -74,11 +80,16 @@ export class AudioProcessor extends EventEmitter {
         // Simulating async processing with a timeout.
         return new Promise(async (resolve) => {
             try {
-                let duration = await this.saveAudio(data.chunk, data.voiceFileName, data.text, data.stepCount, data.temp_file_suffix);
-                data.callback(duration, data.text);
-                waitSync(duration);
+                let output = await this.saveAudio(data.chunk, data.index, data.voiceFileName, data.text, data.stepCount, data.temp_file_suffix);
+                const interval = setInterval(() => {
+                    if (data.index - this.lastIndex <= 1) {
+                        data.callback(data.index, data.text, output[0], output[1], output[2]);
+                        this.lastIndex = data.index;
+                        clearInterval(interval);
+                    }
+                }, 100);
                 this.processing = false;
-                this.emit('processNext');
+                this.emit(this.eventName);
             }
             catch (e) {
                 console.error("ERROR: " + e);
@@ -89,7 +100,7 @@ export class AudioProcessor extends EventEmitter {
         let metaData = await parseFile(filePath);
         return metaData.format.duration;
     }
-    generateLipFile(wavFile, voiceType, fileName, line) {
+    generateLipFile(wavFile, fileName, line) {
         const executablePath = '"' + process.env.SKYRIM_FOLDER + '\\Tools\\LipGen\\LipGenerator\\LipGenerator.exe"';
         const args = [
             '"' + wavFile + '"',
@@ -97,53 +108,27 @@ export class AudioProcessor extends EventEmitter {
         ];
         syncExec(executablePath + " " + args.join(' '));
     }
-    async saveAudio(audioData, voiceFileName, line, stepCount, temp_file_suffix) {
+    async saveAudio(audioData, index, voiceFileName, line, stepCount, temp_file_suffix) {
         if (!audioData) {
             return 0;
         }
-        for (var i = 0; i < VoiceTypes.length; i++) {
-            var voiceType = VoiceTypes[i];
-            var outputFolder = process.env.MODS_FOLDER + "\\WithinWorld\\Sound\\Voice\\WithinWorld.esp\\" + voiceType + "\\";
-            if (!fs.existsSync(outputFolder)) {
-                // Folder does not exist, so create it
-                fs.mkdir(outputFolder, (err) => {
-                    if (err) {
-                        console.error("Error creating folder");
-                    }
-                    else {
-                        // console.log("Voice Folder created successfully. {" + outputFolder + "}");
-                    }
-                });
-            }
-        }
-        const fileName = `temp-${i}-${temp_file_suffix}_${stepCount}.txt`;
+        const fileName = `temp-${temp_file_suffix}_${stepCount}.txt`;
         const tempFileName = `./Audio/Temp/${fileName}`;
         fs.writeFileSync(tempFileName, audioData, 'utf8');
         let duration = 0;
         try {
-            let audioFile = './Audio/Temp/' + voiceFileName + '_' + stepCount + '.wav';
+            let audioFile = './Audio/Temp/' + voiceFileName + '_' + stepCount + '_' + index + '.wav';
+            let lipFile = './Audio/Temp/' + voiceFileName + '_' + stepCount + '_' + index + '.lip';
             syncExec('"./Audio/combine_audio.exe" ' + audioFile + ' ' + tempFileName);
             duration = await this.getAudioDuration(audioFile);
-            this.generateLipFile('./Audio/Temp/' + voiceFileName + '_' + stepCount + '.wav', voiceType, './Audio/Temp/' + voiceFileName + '_' + stepCount + '.lip', line);
+            this.generateLipFile(audioFile, lipFile, line);
+            fs.unlinkSync(tempFileName);
+            return [audioFile, lipFile, duration];
         }
         catch (e) {
             console.error("ERROR during processing audio!");
+            throw Error("ERROR during processing audio!");
         }
-        for (var j = 0; j < VoiceTypes.length; j++) {
-            voiceType = VoiceTypes[j];
-            const outputFolder = process.env.MODS_FOLDER + "\\WithinWorld\\Sound\\Voice\\WithinWorld.esp\\" + voiceType + "\\";
-            const audioFile = outputFolder + voiceFileName + ".wav";
-            const lipFile = outputFolder + voiceFileName + ".lip";
-            // Copying the file to a the same name
-            fs.copyFileSync('./Audio/Temp/' + voiceFileName + '_' + stepCount + '.wav', audioFile);
-            fs.copyFileSync('./Audio/Temp/' + voiceFileName + '_' + stepCount + '.lip', lipFile);
-        }
-        fs.unlinkSync(tempFileName);
-        fs.unlinkSync('./Audio/Temp/' + voiceFileName + '_' + stepCount + '.wav');
-        fs.unlinkSync('./Audio/Temp/' + voiceFileName + '_' + stepCount + '.lip');
-        outputFolder = process.env.MODS_FOLDER + "\\WithinWorld\\Sound\\Voice\\WithinWorld.esp\\" + VoiceTypes[0] + "\\";
-        const audioFile = outputFolder + voiceFileName + ".wav";
-        return duration;
     }
 }
 //# sourceMappingURL=AudioProcessor.js.map

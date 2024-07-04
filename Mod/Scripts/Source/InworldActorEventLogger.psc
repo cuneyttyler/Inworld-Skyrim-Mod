@@ -2,7 +2,7 @@ Scriptname InworldActorEventLogger extends ReferenceAlias
 
 ReferenceAlias[] property ActorRefs auto
 
-bool combatLogged = false
+Actor agressor
 
 Event OnCombatStateChanged(Actor akTarget, int aeCombatState)
     Actor[] actors = GetRefsAsActors()
@@ -18,11 +18,8 @@ Event OnCombatStateChanged(Actor akTarget, int aeCombatState)
     While i < 20
         if (aeCombatState == 0)
             InworldSKSE.LogEvent(actors[i], CurrentTimeString() + self.GetActorRef().GetDisplayName() + " has left combat. " )
-        elseif (aeCombatState == 1 && !combatLogged)
+        elseif (aeCombatState == 1)
             InworldSKSE.LogEvent(actors[i], CurrentTimeString() + self.GetActorRef().GetDisplayName() + " have entered combat with " + akTarget.GetDisplayName() + ". ")
-            combatLogged = true
-            Utility.Wait(2)
-            combatLogged = false
         elseif (aeCombatState == 2)
             InworldSKSE.LogEvent(actors[i], CurrentTimeString() + self.GetActorRef().GetDisplayName() + " is searching for " + akTarget.GetDisplayName() + ". ")
         endIf
@@ -98,12 +95,18 @@ Event OnPlayerBowShot(Weapon akWeapon, Ammo akAmmo, Float afPower, Bool abSunGaz
 EndEvent
 
 Event OnHit(ObjectReference akAggressor, Form akSource, Projectile akProjectile, Bool abPowerAttack, Bool abSneakAttack, Bool abBashAttack, Bool abHitBlocked)
+    If (akAggressor as Actor) == agressor
+         return
+    EndIf
     Actor[] actors = GetRefsAsActors()
     int i = 0
     While i < 20
-        InworldSKSE.LogEvent(actors[i], CurrentTimeString() + self.GetActorRef().GetDisplayName() + " was got hit by " + akAggressor.GetDisplayName() + ". ")
+        InworldSKSE.LogEvent(actors[i], CurrentTimeString() + self.GetActorRef().GetDisplayName() + " got hit by " + akAggressor.GetDisplayName() + ". ")
         i += 1
     EndWhile
+    agressor = (akAggressor as Actor)
+    Utility.Wait(10)
+    agressor = None
 EndEvent
 
 Actor[] Function GetRefsAsActors()

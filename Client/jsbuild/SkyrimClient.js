@@ -109,7 +109,7 @@ fastify.register(async function (fastify) {
         connection.socket.on('message', async (msg) => {
             let message = JSON.parse(msg.toString());
             if (message.type != 'log_event') {
-                console.log("Message received", message);
+                console.log("Message received", msg.toString());
             }
             if (message.type == "connect" && !message.is_n2n) {
                 let result = await ClientManager.ConnectToCharacterViaSocket(message.id, message.playerName, message.playerName, connection.socket);
@@ -129,12 +129,6 @@ fastify.register(async function (fastify) {
                     }
                 }
             }
-            else if (message.type == "start_listen" && !message.is_n2n) {
-                ClientManager.StartTalking();
-            }
-            else if (message.type == "stop_listen" && !message.is_n2n) {
-                ClientManager.StopTalking();
-            }
             else if (message.type == "message" && !message.is_n2n) {
                 if (message.stop) {
                     ClientManager.Stop();
@@ -146,32 +140,6 @@ fastify.register(async function (fastify) {
                 });
             }
             else if (message.type == "stop" && !message.is_n2n) {
-                EventBus.GetSingleton().emit("END");
-            }
-            else if (message.type == "log_event") {
-                SaveEventLog(message.id + "_" + message.formId, message.message + " ", message.playerName);
-                if (ClientManager.IsConversationOngoing()) {
-                    ClientManager.SendNarratedAction(message.message + " ");
-                }
-                if (dialogueManager.IsConversationOngoing()) {
-                    ClientManager_DungeonMaster.SendNarratedAction(message.message + " ");
-                    ClientManager_N2N_Target.SendNarratedAction(message.message + " ");
-                    ClientManager_N2N_Source.SendNarratedAction(message.message + " ");
-                }
-            }
-        });
-    });
-});
-fastify.register(async function (fastify) {
-    fastify.get('/chat_n2n', {
-        websocket: true
-    }, (connection, req) => {
-        connection.socket.on('message', async (msg) => {
-            let message = JSON.parse(msg.toString());
-            if (message.type != 'log_event') {
-                console.log("Message received", message);
-            }
-            if (message.type == "stop" && !message.is_n2n) {
                 EventBus.GetSingleton().emit("END");
             }
             else if (message.type == "connect" && message.is_n2n) {
@@ -310,11 +278,17 @@ export function logToErrorLog(message) {
 }
 // setTimeout(async () => {
 //     console.log("Connecting...")
-//     let result = await ClientManager.ConnectToCharacterViaSocket("Abelone","Uriel", null)
+//     let result = await ClientManager.ConnectToCharacterViaSocket("Abelone", "0", "Uriel", null)
+//     result = result && await ClientManager_DungeonMaster.ConnectToCharacterViaSocket("Faendal", "DungeonMaster", "Uriel", null);
+//     result = result && await ClientManager_N2N_Source.ConnectToCharacterViaSocket("Gerdur", "Faendal", "Uriel", null);
+//     result = result && await ClientManager_N2N_Target.ConnectToCharacterViaSocket("Faendal", "Gerdur", "Uriel", null);
 //     if(result) {
 //         console.log("Successful")
-//         waitSync(2)
-//         ClientManager.Say("Would you like to join me?")
+//         dialogueManager.Manage_N2N_Dialogue("Faendal", "Gerdur", "0", "1", "Uriel", "Riverwood", "")
+//         ClientManager.Say("Greetings.")
+//         setInterval(() => {
+//             ClientManager.Say("Can you tell me about something interesting?")
+//         },2000)
 //     }
 // }, 5000);
 //# sourceMappingURL=SkyrimClient.js.map

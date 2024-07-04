@@ -100,10 +100,9 @@ public:
     client c;
     RE::Actor* conversationActor;
 
-    InworldSocketController(int type) {
+    InworldSocketController() {
         // Set up the connection parameters
         std::string uri = "ws://127.0.0.1:" + std::to_string(getClientPort()) + "/chat";
-        if (type == 1) uri = "ws://127.0.0.1:" + std::to_string(getClientPort()) + "/chat_n2n";
 
         try {
             // set logging policy if needed
@@ -129,6 +128,11 @@ public:
             Util::writeInworldLog("Unknown exception during socket connection.", 1);
             InworldCaller::Reset();
         }
+    }
+
+    static InworldSocketController* GetSingleton() {
+        static InworldSocketController singleton;
+        return &singleton;
     }
 
     int getClientPort() {
@@ -199,6 +203,9 @@ public:
             int speaker = j["speaker"];
             float duration = j["duration"];
 
+            Util::writeInworldLog("ON_MESSAGE ==" + type + "==" + to_string(is_n2n) + "==" + to_string(speaker) +
+                                  "==" + to_string(duration) + "==" + message + "==");
+
             if (type == "established" && !is_n2n) {
                 InworldCaller::ShowReplyMessage("NPC is listening...");
                 InworldCaller::ConnectionSuccessful();
@@ -242,7 +249,6 @@ public:
 class SocketManager {
 private:
     InworldSocketController* soc;
-    InworldSocketController* n2nSoc;
     const char* lastConnected;
     SocketManager() {}
 
@@ -256,8 +262,7 @@ public:
     }
 
     void initSocket() { 
-        soc = new InworldSocketController(0);
-        n2nSoc = new InworldSocketController(1);
+        soc = new InworldSocketController();
     }
 
     void sendMessage(std::string message, RE::Actor* conversationActor, bool stop) {
@@ -312,22 +317,19 @@ public:
                                              to_string(source->GetFormID()), to_string(target->GetFormID()), playerName,
                                              0,
                            source->GetCurrentLocation()->GetName(), currentDateTime);
-        n2nSoc->send_message_n2n(message);
+        soc->send_message_n2n(message);
     }
 
     void SendN2NStopSignal() {
         Util::writeInworldLog("Sending N2N STOP Signal.", 4);
         auto playerName = RE::PlayerCharacter::GetSingleton()->GetName();
         N2NMessage* message = new N2NMessage("stop", "", "", "", "", "", playerName, 0, "");
-        n2nSoc->send_message_n2n(message);
+        soc->send_message_n2n(message);
     }
 
     void ValidateSocket() { 
         if (soc == nullptr || soc->con == nullptr) {
-            soc = new InworldSocketController(0);
-        }
-        if (n2nSoc == nullptr || n2nSoc->con == nullptr) {
-            n2nSoc = new InworldSocketController(1);
+            soc = new InworldSocketController();
         }
     }
 
@@ -382,6 +384,6 @@ public:
         InworldCaller::N2N_TargetActor = targetActor;
         auto playerName = RE::PlayerCharacter::GetSingleton()->GetName();
         N2NMessage* message = new N2NMessage("connect", "connect", source_id, target_id, to_string(source_form_id), to_string(target_form_id), playerName, 0,"");
-        n2nSoc->send_message_n2n(message);
+        soc->send_message_n2n(message);
     }
 };

@@ -15,6 +15,7 @@ const defaultConfigurationConnection = {
 }
 
 export default class InworldClientManager {
+    private managerId: number;
     private connection : InworldConnectionService;
     private client : InworldClient;
     private IsConnected : boolean;
@@ -38,6 +39,7 @@ export default class InworldClientManager {
     }
 
     constructor(setupWorkspace, is_n2n, speaker) {
+        this.managerId = !is_n2n ? 0 : speaker + 1;
         this.is_n2n = is_n2n;
         this.speaker = speaker;
         this.SetupClientAndWorkspace(setupWorkspace)
@@ -69,14 +71,14 @@ export default class InworldClientManager {
                 throw errorResult
             }
             console.log("Requesting connecting to " + id);
-            let scene = await this.workspaceManager.UpdateScene(!this.is_n2n ? 0 : this.speaker + 1, [id]);
-            // let scene = "workspaces/" + WORKSPACE_NAME + "/characters/" + id
+            // let scene = await this.workspaceManager.UpdateScene(!this.is_n2n ? 0 : this.speaker + 1, [id]);
+            let scene = "workspaces/" + WORKSPACE_NAME + "/characters/" + id
             this.client.setUser({fullName: speakerName});
             this.client.setScene(scene);
             this.is_ending = false;
 
-            this.inworldController = new SkyrimInworldController(socket);
-            this.client.setOnMessage((data : any) => this.inworldController.ProcessMessage(data, this));
+            this.inworldController = new SkyrimInworldController(this.managerId, this, socket);
+            this.client.setOnMessage((data : any) => this.inworldController.ProcessMessage(data));
 
             this.client.setOnError((err) => {
                 if (err.code != 10 && err.code != 1)
@@ -89,13 +91,13 @@ export default class InworldClientManager {
                 });
             this.connection = this.client.build();
             this.IsConnected = true;
-            if (!this.is_n2n && !this.isVoiceConnected) {
-                console.log("Creating voice listener connection");
-                let port = parseInt(process.env.AUDIO_PORT);
-                this.blcRecorder = new BLCRecorder("127.0.0.1", port);
-                this.blcRecorder.connect(this.connection);
-                this.inworldController.SetRecorder(this.blcRecorder);
-            }
+            // if (!this.is_n2n && !this.isVoiceConnected) {
+            //     console.log("Creating voice listener connection");
+            //     let port = parseInt(process.env.AUDIO_PORT);
+            //     this.blcRecorder = new BLCRecorder("127.0.0.1", port);
+            //     this.blcRecorder.connect(this.connection);
+            //     this.inworldController.SetRecorder(this.blcRecorder);
+            // }
             let characters = await this.connection.getCharacters()
             this.connection.setCurrentCharacter(characters[0])
             console.log("Starting audio session...")
@@ -229,25 +231,16 @@ export default class InworldClientManager {
         }
     }
 
-    async StartTalking() {
-        if (!this.isAudioSessionStarted) {
-            await this.connection.sendAudioSessionStart();
-            this.isAudioSessionStarted = true;
-        }
-        await this.blcRecorder.start();
-    }
-
-    async StopTalking() {
-        setTimeout(async () => {
-            await this.blcRecorder.stop();
-            await this.connection.sendAudioSessionEnd();
-            this.isAudioSessionStarted = false;
-            this.inworldController.SendUserVoiceInput();
-        }, 500)
-    }
-
     IsConversationOngoing() {
         return this.conversationOngoing;
+    }
+
+    IsN2N() {
+        return this.is_n2n;
+    }
+
+    Speaker() {
+        return this.speaker;
     }
 
     CreateClient() {

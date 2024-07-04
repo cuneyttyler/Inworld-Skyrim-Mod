@@ -38,7 +38,6 @@ public:
     bool Invoke_Hook(void* a_data, RE::GFxValue* a_result, const char* a_name, const RE::GFxValue* a_args,
                      RE::UPInt a_numArgs, bool a_isDObj) {
         try {
-            Util::writeInworldLog("Hook GFx::Invoke.");
             return _Invoke(this, a_data, a_result, a_name, a_args, a_numArgs, a_isDObj);
         } catch (const exception& e) {
             Util::writeInworldLog("Exception during GFxValue::ObjectInterface::Invoke: " + std::string(e.what()), 1);
@@ -54,8 +53,6 @@ public:
 class InvokeHook {
     public:
         static void Install() {
-            Util::writeInworldLog("Installing InvokeHook");
-
             auto address = REL::VariantID(50718, 51612, 0).address();
             auto offset = REL::VariantOffset(0x756, 0x77E, 0).offset();
 
@@ -71,9 +68,9 @@ class InvokeHook {
         static bool InvokeModHide(RE::GFxValue::ObjectInterface* objInt, void* a_data, RE::GFxValue* a_result,
                                   const char* a_name, const RE::GFxValue* a_args, RE::UPInt a_numArgs, bool isDObj) {
             // We have to check this since multiple message types pass through this branch
-            if (strcmp(a_name, "HideSubtitle") == 0) {
+            /*if (strcmp(a_name, "HideSubtitle") == 0) {
                 return true;
-            }
+            }*/
 
             return objInt->Invoke(a_data, a_result, a_name, a_args, a_numArgs, isDObj);
         }
@@ -82,9 +79,9 @@ class InvokeHook {
                                   const char* a_name, const RE::GFxValue* a_args, RE::UPInt a_numArgs, bool isDObj) {
 
             if (string(a_args->GetString()).find(": ...") != std::string::npos) {
-                return true;
+                return false;
             }
-            // We don't have to check here since this one only handles "ShowSubtitle" invocations
+
             return objInt->Invoke(a_data, a_result, a_name, a_args, a_numArgs, isDObj);
         }
     };

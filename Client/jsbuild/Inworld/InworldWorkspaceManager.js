@@ -284,7 +284,7 @@ export default class InworldWorkspaceManager {
             for (let i = 0; i < this.characterList.length; i++) {
                 let character = this.characterList[i];
                 let nameNormalized = character.name.toLowerCase().replaceAll("_", " ");
-                if (nameNormalized.includes(name.toLowerCase()) || character.defaultCharacterDescription.givenName.toLowerCase().includes(name.toLowerCase())) {
+                if (nameNormalized.includes(name.replaceAll("'", "").toLowerCase()) || character.defaultCharacterDescription.givenName.toLowerCase().includes(name.replaceAll("'", "").toLowerCase())) {
                     let name = character.name;
                     let id = name.replace("workspaces/" + WORKSPACE_NAME + "/characters/", "");
                     return character;
@@ -302,7 +302,7 @@ export default class InworldWorkspaceManager {
             for (let i = 0; i < this.characterList.length; i++) {
                 let character = this.characterList[i];
                 let nameNormalized = character.name.toLowerCase().replaceAll("_", " ");
-                if (nameNormalized.includes(name.toLowerCase()) || character.defaultCharacterDescription.givenName.toLowerCase().includes(name.toLowerCase())) {
+                if (nameNormalized.includes(name.replaceAll("'", "").toLowerCase()) || character.defaultCharacterDescription.givenName.toLowerCase().includes(name.replaceAll("'", "").toLowerCase())) {
                     let name = character.name;
                     let id = name.replace("workspaces/" + WORKSPACE_NAME + "/characters/", "");
                     return id;
