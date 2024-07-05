@@ -27,11 +27,11 @@ function CheckN2NDialogue()
         If N2N_ConversationOnGoing.GetValueInt() == 0
             Actor sourceActor = game.FindRandomActorFromRef(Game.GetPlayer(), 700)
             If sourceActor != None && sourceActor != Game.GetPlayer() && IsAvailableForDialogue(sourceActor)
-                ; Debug.Trace("Inworld: Source Actor = " + sourceActor.GetDisplayName())
-                Actor targetActor = game.FindRandomActorFromRef(sourceActor, 280)
+                Debug.Trace("Inworld: Source Actor = " + sourceActor.GetDisplayName())
+                Actor targetActor = game.FindRandomActorFromRef(sourceActor, 350)
 
                 If targetActor != None && targetActor != sourceActor && targetActor != Game.GetPlayer() && IsAvailableForDialogue(targetActor)
-                    ; Debug.Trace("Inworld: Target Actor = " + sourceActor.GetDisplayName())
+                    Debug.Trace("Inworld: Target Actor = " + sourceActor.GetDisplayName())
 
                     
                     If N2N_ConversationOnGoing.GetValueInt() == 0 && _time - lastTryTime > retryInterval && (isFirst() || _time - N2N_LastSuccessfulStart.GetValueInt() > initiateTimeInterval) && Utility.RandomInt(0,2) == 0
@@ -60,7 +60,11 @@ bool function IsSameActors(Actor source, Actor target)
     return (source == previousSource && target == previousTarget) || (source == previousTarget || target == previousSource)
 endFunction 
 
+bool function IsVoiceIncluded(Actor _actor) 
+    return _InworldVoiceTypes != None && _InworldVoiceTypes.GetAt(0) != None && _InworldVoiceTypes.GetAt(1) != None && ((_InworldVoiceTypes.GetAt(0) as FormList).HasForm(_actor.GetVoiceType()) || (_InworldVoiceTypes.GetAt(1) as FormList).HasForm(_actor.GetVoiceType())) &&  !_InworldVoiceTypes_Exclude.HasForm(_actor.GetVoiceType())
+endFunction
+
 bool function IsAvailableForDialogue(Actor _actor)
-    return  ((_InworldVoiceTypes.GetAt(0) as FormList).HasForm(_actor.GetVoiceType()) || (_InworldVoiceTypes.GetAt(1) as FormList).HasForm(_actor.GetVoiceType())) &&  !_InworldVoiceTypes_Exclude.HasForm(_actor.GetVoiceType()) && _actor.GetCombatState() == 0 && normalTarget.GetActorRef() != _actor && _actor.GetCurrentScene() == None && _actor.IsEnabled() && !_actor.IsAlerted() && !_actor.IsAlarmed()  && !_actor.IsBleedingOut() && !_actor.isDead() && !_actor.IsUnconscious()
+    return IsVoiceIncluded(_actor) && _actor.GetCombatState() == 0 && normalTarget.GetActorRef() != _actor && _actor.GetCurrentScene() == None && _actor.IsEnabled() && !_actor.IsAlerted() && !_actor.IsAlarmed()  && !_actor.IsBleedingOut() && !_actor.isDead() && !_actor.IsUnconscious()
 endFunction
 

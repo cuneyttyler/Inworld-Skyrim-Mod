@@ -34,7 +34,6 @@ export default class InworldClientManager {
     currentCapabilities = {
         audio: true,
         emotions: true,
-        phonemes: true,
         narratedActions: true
     }
 

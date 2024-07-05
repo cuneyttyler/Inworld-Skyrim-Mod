@@ -17,7 +17,7 @@ Function LogEvents()
         FindAllNpcsInArea()
         AssignActorsToRefs()
         SendActors()
-        Utility.Wait(1)
+        Utility.Wait(10)
     EndWhile
 EndFunction
 
@@ -52,8 +52,12 @@ Function SendActors()
     EndWhile
 EndFunction
 
+bool function IsVoiceIncluded(Actor _actor) 
+    return _InworldVoiceTypes != None && _InworldVoiceTypes.GetAt(0) != None && _InworldVoiceTypes.GetAt(1) != None && ((_InworldVoiceTypes.GetAt(0) as FormList).HasForm(_actor.GetVoiceType()) || (_InworldVoiceTypes.GetAt(1) as FormList).HasForm(_actor.GetVoiceType())) &&  !_InworldVoiceTypes_Exclude.HasForm(_actor.GetVoiceType())
+endFunction
+
 bool function IsAvailable(Actor _actor)
-    return  ((_InworldVoiceTypes.GetAt(0) as FormList).HasForm(_actor.GetVoiceType()) || (_InworldVoiceTypes.GetAt(1) as FormList).HasForm(_actor.GetVoiceType())) && !_InworldVoiceTypes_Exclude.HasForm(_actor.GetVoiceType()) && _actor.IsEnabled() && !_actor.isDead() && !_actor.IsUnconscious()
+    return  IsVoiceIncluded(_actor) && _actor.IsEnabled() && !_actor.isDead() && !_actor.IsUnconscious()
 endFunction
 
 bool Function IsInArray(Actor _actor, Actor[] arr)

@@ -12,7 +12,6 @@ export function GetPayload(message: string, type: string, duration, is_n2n, spea
 
 export class SkyrimInworldController {
     private Responses : Array<string> = [];
-    private CombinedPhoneme : string = "";
     private CombinedUserInput : string = "";
     private ResponseQueue : Array<string> = [];
     private ResponseIndex : number = -1;
@@ -55,12 +54,6 @@ export class SkyrimInworldController {
         }
 
         if (msg.type == 'AUDIO') { 
-            let arr = msg.audio.additionalPhonemeInfo;
-            arr.forEach(ph => {
-                if (ph.phoneme != "<INTERSPERSE_CHARACTER>") 
-                    this.CombinedPhoneme += ph.phoneme
-                
-            });
             const interval = setInterval(() => {
                 if(this.ResponseQueue.length > 0) {
                     console.log("MESSAGE REQUEST ==" + this.ResponseQueue[0] + "==" + this.clientManager.IsN2N() + "==" + this.clientManager.Speaker() + "==")

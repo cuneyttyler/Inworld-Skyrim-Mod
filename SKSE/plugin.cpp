@@ -128,6 +128,7 @@ using namespace std;
 static class SubtitleManager {
 public:
     inline static std::mutex m;
+    inline static bool HideSignal = false;
 
     static RE::SubtitleInfo* GetSubtitle(RE::Actor* actor, string subtitle) {
         RE::SubtitleInfo* subtitleInfo = new RE::SubtitleInfo();
@@ -140,29 +141,26 @@ public:
         return subtitleInfo;
     }
     static void ShowSubtitle(RE::Actor* actor, string subtitle, float duration) {
-        m.lock();
-
         try {
             RE::SubtitleInfo* subtitleInfo = GetSubtitle(actor, subtitle);
             RE::SubtitleManager::GetSingleton()->subtitles.push_back(*subtitleInfo);
+            this_thread::sleep_for(2s);
+            RE::SubtitleInfo* emptySubtitleInfo = GetSubtitle(actor, "==EMPTY_SUBTITLE==");
+            RE::SubtitleManager::GetSingleton()->subtitles.push_back(*emptySubtitleInfo);
         } catch (const exception& e) {
             Util::writeInworldLog("Exception during ==ShowSubtitle==: " + string(e.what()), 1);
         } catch (...) {
             Util::writeInworldLog("Unknown exception during ==ShowSubtitle==.", 1);
         }
-
-        m.unlock();
     }
 
-    static void HideSubtitle(RE::Actor* actor) {
+    static void HideSubtitle() {
         m.lock();
 
         try {
             auto hudMenu = RE::UI::GetSingleton()->GetMenu<RE::HUDMenu>(RE::HUDMenu::MENU_NAME);
             auto root = hudMenu->GetRuntimeData().root;
             root.Invoke("HideSubtitle", nullptr, nullptr, 0);
-            /*RE::SubtitleInfo* subtitleInfo = GetSubtitle(actor, "_");
-            RE::SubtitleManager::GetSingleton()->subtitles.push_back(*subtitleInfo);*/
         } catch (const exception& e) {
             Util::writeInworldLog("Exception during ==HideSubtitle==: " + string(e.what()), 1);
         } catch (...) {
@@ -299,9 +297,11 @@ public:
         SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
         SendResponseLog(InworldCaller::conversationActor, message);
         SubtitleManager::ShowSubtitle(InworldCaller::conversationActor, message, duration);
-        this_thread::sleep_for(chrono::milliseconds((long) (duration * 1000)));
-        SubtitleManager::HideSubtitle(InworldCaller::conversationActor);
+        /*this_thread::sleep_for(chrono::milliseconds((long) (duration * 1000)));
+        SubtitleManager::HideSubtitle();*/
     }
+
+    static void EndInteraction() { SubtitleManager::HideSubtitle(); }
 
     static void SpeakN2N(std::string message, int speaker, float duration) {
         if (speaker == 0) {
@@ -310,16 +310,16 @@ public:
             SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
             SendResponseLog(InworldCaller::N2N_SourceActor, message);
             SubtitleManager::ShowSubtitle(InworldCaller::N2N_SourceActor, message, duration);
-            this_thread::sleep_for(chrono::milliseconds((long)(duration * 1000)));
-            SubtitleManager::HideSubtitle(InworldCaller::N2N_SourceActor);
+            /*this_thread::sleep_for(chrono::milliseconds((long)(duration * 1000)));
+            SubtitleManager::HideSubtitle();*/
         } else {
             if (InworldCaller::N2N_TargetActor == nullptr) return;
             SKSE::ModCallbackEvent modEvent{"BLC_Speak_N2N", "", 1, InworldCaller::N2N_TargetActor};
             SKSE::GetModCallbackEventSource()->SendEvent(&modEvent);
             SendResponseLog(InworldCaller::N2N_TargetActor, message);
             SubtitleManager::ShowSubtitle(InworldCaller::N2N_TargetActor, message, duration);
-            this_thread::sleep_for(chrono::milliseconds((long)(duration * 1000)));
-            SubtitleManager::HideSubtitle(InworldCaller::N2N_TargetActor);
+            /*this_thread::sleep_for(chrono::milliseconds((long)(duration * 1000)));
+            SubtitleManager::HideSubtitle();*/
         }
     }
 };
@@ -362,13 +362,12 @@ public:
                 
                 if (!contains(playerEventText)) {
                     string actorsStr = "";
-                    for (RE::Actor* actor : actors) {
+                    for (RE::Actor* actor: actors) {
                         SocketManager::getInstance().SendLogEvent(actor, playerEventText);
                         actorsStr += Util::GetActorName(actor) + ", ";
                     }
                     if (actorsStr.length() > 0) actorsStr = actorsStr.substr(0, actorsStr.length() - 2);
-                    Util::writeInworldLog("Sending player event text == " + playerEventText + " == to [" + actorsStr + "] ==",
-                                    4);
+                    Util::writeInworldLog("Sending player event text == " + playerEventText + " == to [" + actorsStr + "] ==", 4);
 
                     lines.push_back(playerEventText);
                 }
@@ -379,8 +378,7 @@ public:
                         if (Util::GetActorName(actor) == Util::GetActorName(speaker)) {
                             characterEventText = "You said \"" + string(fullResponse) + "\".";
                         } else {
-                            characterEventText =
-                                string(Util::GetActorName(speaker)) + " said \"" + string(fullResponse) + "\".";
+                            characterEventText = Util::GetActorName(speaker) + " said \"" + string(fullResponse) + "\".";
                         }
 
                         SocketManager::getInstance().SendLogEvent(actor, characterEventText);
@@ -397,6 +395,10 @@ public:
         RE::UI_MESSAGE_RESULTS ProcessMessage_Hook(RE::UIMessage& a_message) {
             RE::MenuTopicManager* topicManager = RE::MenuTopicManager::GetSingleton();
             RE::Actor* speaker = static_cast<RE::Actor*>(topicManager->speaker.get().get());
+            if (speaker == nullptr) {
+                Util::writeInworldLog("SPEAKER is not ACTOR. RETURNING.", 1);
+                return _ProcessMessage(this, a_message);
+            }
 
             m.lock();
             switch (a_message.type.get()) {
@@ -421,27 +423,32 @@ public:
     static void SendSubtitle(RE::Actor* speaker, string subtitle) {
         if (subtitle.length() == 0) return;
 
+        m.lock();
         string actorsStr = "";
         for (RE::Actor* actor : actors) {
             string eventText = "";
             if (Util::GetActorName(actor) == Util::GetActorName(speaker)) {
                 eventText = "You said \"" + string(subtitle) + "\".";
             } else {
-                eventText = string(Util::GetActorName(speaker)) +
-                            " said \"" + subtitle + "\".";
+                eventText = Util::GetActorName(speaker) + " said \"" + subtitle + "\".";
             }
             SocketManager::getInstance().SendLogEvent(actor, eventText);
             actorsStr += Util::GetActorName(actor) + ", ";
         }
         if (actorsStr.length() > 0) actorsStr = actorsStr.substr(0, actorsStr.length() - 2);
+        Util::writeInworldLog("Sending subtitle == " + subtitle + " == to [" + actorsStr + "] ==", 4);
+        m.unlock();
     }
 
     static void WatchSubtitles() {
         try {
             for (RE::SubtitleInfo subtitle : RE::SubtitleManager::GetSingleton()->subtitles) {
-                if (!contains(subtitle.subtitle.c_str())) {
-                    SendSubtitle(static_cast<RE::Actor*>(subtitle.speaker.get().get()), subtitle.subtitle.c_str());
-                    lines.push_back(subtitle.subtitle.c_str());
+                RE::Actor* speaker = static_cast<RE::Actor*>(subtitle.speaker.get().get());
+                if (!contains(string(subtitle.subtitle.c_str())) && speaker != nullptr) {
+                    SendSubtitle(speaker, subtitle.subtitle.c_str());
+                    lines.push_back(string(subtitle.subtitle.c_str()));
+                } else if (speaker == nullptr) {
+                    Util::writeInworldLog("SPEAKER is not ACTOR.", 1);
                 }
             }
         } catch (const exception& e) {
@@ -504,11 +511,7 @@ public:
     }
 
     static bool LogEvent(RE::StaticFunctionTag*, RE::Actor* actor, string log) {
-        if (actor == nullptr) {
-            return false;
-        }
-
-         SocketManager::getInstance().SendLogEvent(actor, log);
+        SocketManager::getInstance().SendLogEvent(actor, log);
 
         return true;
     }
@@ -640,7 +643,7 @@ SKSEPluginLoad(const SKSE::LoadInterface* skse) {
     EventWatcher::DialogueMenuEx::_ProcessMessage =
         vTable_dm.write_vfunc(0x4, &EventWatcher::DialogueMenuEx::ProcessMessage_Hook);
 
-    //Inworld::UpdatePCHook::Install();
+    Inworld::UpdatePCHook::Install();
     Inworld::InvokeHook::Install();
 
     Util::GetSettings();

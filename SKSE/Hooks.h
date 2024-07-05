@@ -14,39 +14,21 @@ private:
 
         RE::BSTArray<RE::SubtitleInfo> newSubtitles(10);
         auto subtitleManager = RE::SubtitleManager::GetSingleton();
-
-        for (RE::SubtitleInfo& subtitleInfo : subtitleManager->subtitles) {
-            if (std::string(subtitleInfo.subtitle.c_str()) !=
-                "" && !std::string(subtitleInfo.subtitle.c_str())._Equal("...")) {
-                Util::writeInworldLog("SUBTITLE ==" + std::string(subtitleInfo.subtitle.c_str()) + "==");
-                newSubtitles.push_back(subtitleInfo);
-            } else {
-                Util::writeInworldLog("OMITTING");
-            }
-        }
         
-        subtitleManager->subtitles = newSubtitles;
+        bool isEmpty = true;
+        for (RE::SubtitleInfo subtitleInfo : subtitleManager->subtitles) {
+            isEmpty = false;
+            break;
+        }
+        if (isEmpty && SubtitleManager::HideSignal) {
+            SubtitleManager::HideSubtitle();
+            SubtitleManager::HideSignal = false;
+        }
+        else if(!isEmpty) {
+            SubtitleManager::HideSignal = true;
+        }
     }
     static inline REL::Relocation<decltype(UpdatePCMod)> UpdatePC;
-};
-
-class GFxValueHook : public RE::GFxValue::ObjectInterface {
-public:
-    using Invoke_t = decltype(&RE::GFxValue::ObjectInterface::Invoke);
-    inline static REL::Relocation<Invoke_t> _Invoke;
-
-    bool Invoke_Hook(void* a_data, RE::GFxValue* a_result, const char* a_name, const RE::GFxValue* a_args,
-                     RE::UPInt a_numArgs, bool a_isDObj) {
-        try {
-            return _Invoke(this, a_data, a_result, a_name, a_args, a_numArgs, a_isDObj);
-        } catch (const exception& e) {
-            Util::writeInworldLog("Exception during GFxValue::ObjectInterface::Invoke: " + std::string(e.what()), 1);
-            return false;
-        } catch (...) {
-            Util::writeInworldLog("Unknown Exception during GFxValue::ObjectInterface::Invoke.", 1);
-            return false;
-        }
-    }
 };
 
 // Hook into the Invoke calls in HUDMenu::ProcessMessage which call "HideSubtitle" and "ShowSubtitle"
@@ -67,22 +49,27 @@ class InvokeHook {
     private:
         static bool InvokeModHide(RE::GFxValue::ObjectInterface* objInt, void* a_data, RE::GFxValue* a_result,
                                   const char* a_name, const RE::GFxValue* a_args, RE::UPInt a_numArgs, bool isDObj) {
+                        
             // We have to check this since multiple message types pass through this branch
-            /*if (strcmp(a_name, "HideSubtitle") == 0) {
+            if (strcmp(a_name, "HideSubtitle") == 0) {
                 return true;
-            }*/
+            }
 
-            return objInt->Invoke(a_data, a_result, a_name, a_args, a_numArgs, isDObj);
+            auto result = objInt->Invoke(a_data, a_result, a_name, a_args, a_numArgs, isDObj);
+
+            return result;
         }
 
         static bool InvokeModShow(RE::GFxValue::ObjectInterface* objInt, void* a_data, RE::GFxValue* a_result,
                                   const char* a_name, const RE::GFxValue* a_args, RE::UPInt a_numArgs, bool isDObj) {
 
-            if (string(a_args->GetString()).find(": ...") != std::string::npos) {
+            if (string(a_args->GetString()).find("==EMPTY_SUBTITLE==") != std::string::npos || string(a_args->GetString()).find(": ...") != std::string::npos) {
                 return false;
             }
 
-            return objInt->Invoke(a_data, a_result, a_name, a_args, a_numArgs, isDObj);
+            auto result = objInt->Invoke(a_data, a_result, a_name, a_args, a_numArgs, isDObj);
+
+            return result;
         }
     };
 }

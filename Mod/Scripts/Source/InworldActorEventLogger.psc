@@ -70,20 +70,20 @@ Event OnObjectEquipped(Form akBaseObject, ObjectReference akReference)
     EndWhile
 EndEvent
 
-Event OnObjectUnequipped(Form akBaseObject, ObjectReference akReference)
-    Actor[] actors = GetRefsAsActors()
-    int i = 0
-    String objectType = "an item"
-    If akBaseObject as Weapon
-        objectType = "a weapon"
-    ElseIf akBaseObject as Armor
-        objectType = "an armor"
-    EndIf
-    While i < 20
-        InworldSKSE.LogEvent(actors[i], CurrentTimeString() + self.GetActorRef().GetDisplayName() + " has unequipped " + objectType + ". ")
-        i += 1
-    EndWhile
-EndEvent
+; Event OnObjectUnequipped(Form akBaseObject, ObjectReference akReference)
+;     Actor[] actors = GetRefsAsActors()
+;     int i = 0
+;     String objectType = "an item"
+;     If akBaseObject as Weapon
+;         objectType = "a weapon"
+;     ElseIf akBaseObject as Armor
+;         objectType = "an armor"
+;     EndIf
+;     While i < 20
+;         InworldSKSE.LogEvent(actors[i], CurrentTimeString() + self.GetActorRef().GetDisplayName() + " has unequipped " + objectType + ". ")
+;         i += 1
+;     EndWhile
+; EndEvent
 
 Event OnPlayerBowShot(Weapon akWeapon, Ammo akAmmo, Float afPower, Bool abSunGazing)
     Actor[] actors = GetRefsAsActors()

@@ -42,12 +42,6 @@ if(DEFINED OUTPUT_FOLDER)
     )
 
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        add_custom_command(
-            TARGET "${PROJECT_NAME}"
-            POST_BUILD
-            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_PDB_FILE:${PROJECT_NAME}>" "${DLL_FOLDER}/$<TARGET_PDB_FILE_NAME:${PROJECT_NAME}>"
-            VERBATIM
-        )
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj")
     endif()
 endif()

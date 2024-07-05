@@ -11591,7 +11591,7 @@
       "cognitiveControl": "COGNITIVE_CONTROL_UNSPECIFIED"
     },
     {
-      "name": "workspaces/{WORKSPACE}/characters/j'zargo",
+      "name": "workspaces/{WORKSPACE}/characters/jzargo",
       "languageCode": "en",
       "defaultCharacterDescription": {
         "givenName": "J'zargo",

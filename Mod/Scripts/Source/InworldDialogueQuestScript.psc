@@ -36,35 +36,8 @@ endFunction
 
 function SetHoldPosition(String eventName, String strArg, Float numArg, Form sender)
     if numArg as Int == 0
-		; Debug.Trace("Inworld: Adding stand still package to " + (sender as Actor).GetDisplayName() + "...")
-		; ActorUtil.AddPackageOverride(sender as Actor, InworldStandPackage, 0)
         (sender as Actor).SetLookAt(Game.GetPlayer())
     endIf
-	if numArg as Int == 1
-		; Debug.Trace("Inworld: Removing stand still package from " + (sender as Actor).GetDisplayName() + "...")
-		; ActorUtil.ClearPackageOverride(sender as Actor)
-        (sender as Actor).SetLookAt(None)
-    endIf
-    ; if numArg as Int == 2
-    ;     if source_n2n == None || target_n2n == None
-    ;         return
-    ;     endIf
-    ;     Debug.Trace("Inworld: Adding stand still package to " + source_n2n.GetActorRef().GetDisplayName() + " and " + target_n2n.GetActorRef().GetDisplayName() + "...")
-	; 	ActorUtil.AddPackageOverride(source_n2n.GetActorRef(), InworldN2NStandPackage, 0)
-    ;     ActorUtil.AddPackageOverride(target_n2n.GetActorRef(), InworldN2NStandPackage, 0)
-    ;     source_n2n.GetActorRef().SetLookAt(target_n2n.GetActorRef())
-    ;     target_n2n.GetActorRef().SetLookAt(source_n2n.GetActorRef())
-    ; endIf
-    ; if numArg as Int == 3
-    ;     if source_n2n == None || target_n2n == None
-    ;         return
-    ;     endIf
-    ;     Debug.Trace("Inworld: Removing stand still package from " + source_n2n.GetActorRef().GetDisplayName() + " and " + target_n2n.GetActorRef().GetDisplayName() + "...")
-	; 	ActorUtil.ClearPackageOverride(source_n2n.GetActorRef())
-    ;     ActorUtil.ClearPackageOverride(target_n2n.GetActorRef())
-    ;     source_n2n.GetActorRef().SetLookAt(None)
-    ;     target_n2n.GetActorRef().SetLookAt(None)
-	; endIf
 endFunction
 
 function Reset()
@@ -140,8 +113,10 @@ endFunction
 
 function Start_N2N_Target(String eventName, String strArg, Float numArg, Form sender)
     target_n2n.ForceRefTo(sender as Actor)
-    source_n2n.GetActorRef().SetLookAt(target_n2n.GetActorRef())
-    target_n2n.GetActorRef().SetLookAt(source_n2n.GetActorRef())
+    If source_n2n.GetActorRef() != None && target_n2n.GetActorRef() != None
+        source_n2n.GetActorRef().SetLookAt(target_n2n.GetActorRef())
+        target_n2n.GetActorRef().SetLookAt(source_n2n.GetActorRef())
+    EndIf
     ; (InworldDialogueQuest as InworldDIalogueQuestN2NScript).SetPreviousActors(source_n2n.GetActorRef(), target_n2n.GetActorRef())
 endFunction
 
@@ -177,6 +152,10 @@ function AddToFollowers(String eventName, String strArg, Float numArg, Form send
     Debug.Notification(_actor.GetDisplayName() + " is now following you.")
 endFunction
 
+bool function IsVoiceIncluded(Actor _actor) 
+    return _InworldVoiceTypes != None && _InworldVoiceTypes.GetAt(0) != None && _InworldVoiceTypes.GetAt(1) != None && ((_InworldVoiceTypes.GetAt(0) as FormList).HasForm(_actor.GetVoiceType()) || (_InworldVoiceTypes.GetAt(1) as FormList).HasForm(_actor.GetVoiceType())) &&  !_InworldVoiceTypes_Exclude.HasForm(_actor.GetVoiceType())
+endFunction
+
 bool function IsAvailableForDialogue(Actor _actor)
-    return ((_InworldVoiceTypes.GetAt(0) as FormList).HasForm(_actor.GetVoiceType()) || (_InworldVoiceTypes.GetAt(1) as FormList).HasForm(_actor.GetVoiceType())) && !_InworldVoiceTypes_Exclude.HasForm(_actor.GetVoiceType()) && _actor.GetCombatState() == 0 && _actor.IsEnabled()&& !_actor.IsAlerted() && !_actor.IsAlarmed()  && !_actor.IsBleedingOut() && !_actor.isDead() && !_actor.IsUnconscious()
+    return IsVoiceIncluded(_actor) && _actor.GetCombatState() == 0 && _actor.IsEnabled()&& !_actor.IsAlerted() && !_actor.IsAlarmed()  && !_actor.IsBleedingOut() && !_actor.isDead() && !_actor.IsUnconscious()
 endFunction

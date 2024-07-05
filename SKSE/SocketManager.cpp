@@ -217,6 +217,8 @@ public:
                 InworldCaller::Speak(message, duration);
             } else if (type == "chat" && is_n2n) {
                 InworldCaller::SpeakN2N(message, speaker, duration);
+            } else if (type == "end_interaction") {
+                InworldCaller::EndInteraction();
             } else if (type == "end" && !is_n2n) {
                 InworldCaller::Stop();
             } else if (type == "follow_request_accepted" && !is_n2n) {
@@ -293,13 +295,10 @@ public:
 
     void SendLogEvent(RE::Actor* actor, string log) { 
         try {
-            if (actor == nullptr) return;
             ValidateSocket();
-            auto id = Util::GetActorName(actor);
-            auto form_id = actor->GetFormID();
             auto playerName = RE::PlayerCharacter::GetSingleton()->GetName();
-            if (id == "") return;
-            Message* message = new Message("log_event", log, id, to_string(form_id), playerName);
+            Message* message =
+                new Message("log_event", log, Util::GetActorName(actor), std::to_string(actor->GetFormID()), playerName);
             soc->send_message(message);
         } catch (const exception& e) {
             Util::writeInworldLog("Exception on SendLogEvent: " + string(e.what()), 1);
@@ -360,7 +359,9 @@ public:
         ValidateSocket();
         auto id = conversationActor->GetName();
         auto form_id = conversationActor->GetFormID();
-        auto location = conversationActor->GetCurrentLocation()->GetName();
+        auto location = conversationActor->GetCurrentLocation() != nullptr
+                            ? conversationActor->GetCurrentLocation()->GetName()
+                            : "";
         auto playerName = RE::PlayerCharacter::GetSingleton()->GetName();
         if (id == nullptr || id == "") return;
         Util::writeInworldLog("Connecting to " + Util::GetActorName(conversationActor) + ".", 4);
